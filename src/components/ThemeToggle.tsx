@@ -11,7 +11,7 @@ type Theme = "dark" | "light";
  * a small ◐ mark in the nav corner.
  */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
 
   useEffect(() => {
     // The inline script in layout.tsx applies the attribute pre-paint;

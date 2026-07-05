@@ -37,7 +37,7 @@ export function Hero() {
         <p className="animate-fadeUp text-[11px] tracking-[0.35em] text-copper-bright md:text-xs">
           {t.hero.kicker.toUpperCase()}
         </p>
-        <h1 className="mt-6 animate-fadeUp font-display text-5xl leading-[1.08] tracking-tight [animation-delay:150ms] md:text-7xl lg:text-8xl">
+        <h1 className="mt-6 animate-fadeUp font-display text-5xl leading-[1.08] tracking-tight text-paper [animation-delay:150ms] md:text-7xl lg:text-8xl">
           {t.hero.title1}
           <br />
           <span className="text-paper-dim">{t.hero.title2}</span>

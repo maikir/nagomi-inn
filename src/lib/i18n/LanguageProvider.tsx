@@ -18,14 +18,13 @@ const LanguageContext = createContext<LanguageContextValue>({
 const STORAGE_KEY = "nagomi.lang";
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+  // Japanese is the default; a visitor's explicit choice (saved) wins.
+  const [lang, setLangState] = useState<Lang>("ja");
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (saved === "en" || saved === "ja") {
       setLangState(saved);
-    } else if (navigator.language.toLowerCase().startsWith("ja")) {
-      setLangState("ja");
     }
   }, []);
 

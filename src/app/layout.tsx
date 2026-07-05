@@ -30,8 +30,8 @@ export const metadata: Metadata = {
     description:
       "Two whole houses, a barrel sauna, and the quiet of Miyazaki's rice fields. A private inn for up to 16 guests.",
     images: ["/images/sauna-exterior.jpg"],
-    locale: "en_US",
-    alternateLocale: "ja_JP",
+    locale: "ja_JP",
+    alternateLocale: "en_US",
     type: "website",
   },
 };
@@ -40,12 +40,13 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
+    <html lang="ja" className={`${display.variable} ${body.variable}`} suppressHydrationWarning>
       <head>
-        {/* Apply saved theme before first paint to avoid a flash (default: dark) */}
+        {/* Apply theme before first paint to avoid a flash (default: light "washi";
+            a visitor's saved choice of dark wins) */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `try{if(localStorage.getItem("nagomi.theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`,
+            __html: `try{if(localStorage.getItem("nagomi.theme")!=="dark")document.documentElement.dataset.theme="light"}catch(e){document.documentElement.dataset.theme="light"}`,
           }}
         />
       </head>
