@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 和 NAGOMI — Inn website
 
-## Getting Started
+Website for **田舎民泊 和 / Nagomi Inn Miyazaki** — a private two-house inn with a barrel
+sauna for up to 16 guests. Built with Next.js 14 (App Router) + Tailwind, ready for
+Vercel, with a reservation system that runs on browser localStorage today and swaps to
+Supabase by setting two environment variables.
 
-First, run the development server:
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy to Vercel
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Push this folder to a GitHub repo (`git init && git add -A && git commit -m "init"`).
+2. Import the repo at vercel.com — no configuration needed, it detects Next.js.
+3. Done. (Add the Supabase env vars later when you're ready — see below.)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Things you'll want to edit
 
-## Learn More
+| What | Where |
+|---|---|
+| **Contact info (email / phone / Instagram)** — currently placeholders | `src/config/site.ts` |
+| Pricing (base rate, per-guest rate, cleaning fee) — placeholder values | `src/config/site.ts` |
+| All site text, EN & JA | `src/lib/i18n/dictionaries.ts` |
+| Photos | `public/images/` (referenced in `src/components/home/*.tsx`) |
+| House names / descriptions (母屋・離れ are editable suggestions) | `src/lib/i18n/dictionaries.ts` → `spaces` |
 
-To learn more about Next.js, take a look at the following resources:
+## Reservations: demo mode → Supabase
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The UI talks only to the `ReservationStore` interface (`src/lib/reservations/types.ts`).
+Two implementations exist:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **`LocalReservationStore`** *(active now)* — stores reservations in the visitor's
+  browser localStorage. Full flow works: availability calendar, double-booking
+  prevention, confirmation codes, viewing and cancelling.
+- **`SupabaseReservationStore`** — same contract against Postgres. The database schema
+  (`supabase/schema.sql`) enforces no-overlapping-stays at the database level with an
+  exclusion constraint, so double bookings are impossible even under race conditions.
 
-## Deploy on Vercel
+To switch: create a Supabase project, run `supabase/schema.sql` in its SQL editor, then
+set in `.env.local` (and on Vercel):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The store factory (`src/lib/reservations/index.ts`) detects the vars and switches
+automatically. No other code changes.
+
+> ⚠ The included RLS policies are demo-grade (public read/insert). Before taking real
+> bookings, move writes behind a server route and add payments/auth as needed.
+> A Redis layer (e.g. Upstash) could later front `bookedDates()` for caching, but at
+> this traffic level Postgres alone is plenty.
+
+## Languages
+
+EN / 日本語 toggle lives in the nav (top right). Preference persists in localStorage and
+auto-detects Japanese browsers on first visit. All copy lives in one file:
+`src/lib/i18n/dictionaries.ts`.

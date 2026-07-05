@@ -2,26 +2,179 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme palettes ───────────────────────────────────────────────────────────
+   Colors are RGB triplets consumed by Tailwind as rgb(var(--x) / <alpha>).
+   Default (no data-theme attr) = dark "sumi" theme — the charred-cedar look.
+   data-theme="light"           = bright "washi" theme — warm paper & ink.
+   The names keep their dark-theme meaning everywhere in the markup:
+   `sumi`  = surfaces, `paper` = text — both flip values per theme.            */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --sumi-950: 12 14 15;
+  --sumi-900: 18 21 23;
+  --sumi-800: 26 30 33;
+  --sumi-700: 37 43 46;
+  --sumi-600: 57 66 70;
+
+  --paper: 236 229 216;
+  --paper-bright: 246 241 231;
+  --paper-dim: 201 192 175;
+  --paper-faint: 142 135 120;
+
+  --copper: 176 117 74;
+  --copper-bright: 207 144 102;
+  --copper-dim: 138 90 56;
+
+  --moss: 138 143 111;
+  --moss-dim: 93 97 80;
+
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+[data-theme="light"] {
+  --sumi-950: 248 245 239; /* page background — warm washi white */
+  --sumi-900: 241 236 227; /* alternate sections & cards */
+  --sumi-800: 232 226 213;
+  --sumi-700: 220 212 196;
+  --sumi-600: 170 162 145;
+
+  --paper: 41 42 39; /* body text — sumi ink */
+  --paper-bright: 20 21 20;
+  --paper-dim: 96 93 83; /* secondary text */
+  --paper-faint: 148 143 128;
+
+  --copper: 166 102 55;
+  --copper-bright: 140 82 39; /* accent text needs to be darker on white */
+  --copper-dim: 196 138 94;
+
+  --moss: 104 110 78;
+  --moss-dim: 134 138 110;
+
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-sumi-950 text-paper font-body antialiased;
+  transition: background-color 0.5s ease, color 0.5s ease;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+::selection {
+  @apply bg-copper text-sumi-950;
+}
+
+/* ── Scroll-reveal (driven by the <Reveal> component) ─────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
+  .animate-kenburns,
+  .animate-fadeUp {
+    animation: none !important;
+  }
+}
+
+/* Vertical Japanese accent text (和 motif, section markers) */
+.vertical-text {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+
+/* ── Light-theme photo treatment ──────────────────────────────────────────────
+   Gradient overlays in the markup use sumi tones, so in light mode photos get
+   washed with white — the airy ryokan-website look. Text set over photo
+   midsections keeps a readable scrim via .photo-scrim below.                  */
+.photo-scrim {
+  background: transparent;
+  transition: background-color 0.5s ease;
+}
+[data-theme="light"] .photo-scrim {
+  background: rgb(248 245 239 / 0.12);
+}
+
+/* Hero overlays: dramatic ink fade over the photo. */
+.hero-grad-y {
+  background: linear-gradient(
+    to top,
+    rgb(var(--sumi-950)) 0%,
+    rgb(var(--sumi-950) / 0.35) 55%,
+    rgb(var(--sumi-950) / 0.55) 100%
+  );
+}
+.hero-grad-x {
+  background: linear-gradient(to right, rgb(var(--sumi-950) / 0.6), transparent);
+}
+
+/* ── Light theme: the hero stays photo-first ──────────────────────────────────
+   The photograph runs full and crisp under the washi nav; text over it stays
+   light (dark-mode palette re-declared locally), with only a soft dark scrim
+   at the lower-left for legibility. The section then cuts cleanly into the
+   white page below — photo band on paper, the bright-ryokan-site look.       */
+[data-theme="light"] .hero-section {
+  --paper: 236 229 216;
+  --paper-bright: 246 241 231;
+  --paper-dim: 209 202 188;
+  --paper-faint: 172 165 151;
+  --copper: 176 117 74;
+  --copper-bright: 207 144 102;
+  --copper-dim: 138 90 56;
+}
+[data-theme="light"] .hero-section .photo-scrim {
+  background: transparent;
+}
+[data-theme="light"] .hero-section .hero-grad-y {
+  background: linear-gradient(
+    to top,
+    rgb(12 14 15 / 0.68) 0%,
+    rgb(12 14 15 / 0.22) 50%,
+    rgb(12 14 15 / 0) 100%
+  );
+}
+[data-theme="light"] .hero-section .hero-grad-x {
+  background: linear-gradient(to right, rgb(12 14 15 / 0.4), transparent 60%);
+}
+
+/* In the bright theme the nav is always solid washi (ink links need a ground
+   to sit on over photos) — dark theme keeps its transparent-over-hero drama. */
+[data-theme="light"] .site-nav {
+  background: rgb(var(--sumi-950) / 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgb(var(--paper) / 0.1);
+}
+
+/* Final CTA wash: strong ink veil in dark, lighter airy veil in light */
+.cta-scrim {
+  background: rgb(var(--sumi-950) / 0.7);
+}
+[data-theme="light"] .cta-scrim {
+  background: rgb(var(--sumi-950) / 0.55);
+}
+
+/* Custom scrollbar to match the palette */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: rgb(var(--sumi-950));
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--sumi-600));
+  border-radius: 5px;
 }
