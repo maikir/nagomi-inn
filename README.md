@@ -7,9 +7,11 @@ Supabase by setting two environment variables.
 
 ## Run locally
 
+Uses [bun](https://bun.sh) (`curl -fsSL https://bun.sh/install | bash` if you don't have it):
+
 ```bash
-npm install
-npm run dev        # http://localhost:3000
+bun install
+bun run dev        # http://localhost:3000
 ```
 
 ## Deploy to Vercel
@@ -36,7 +38,7 @@ Two implementations exist:
 - **`LocalReservationStore`** *(active now)* — stores reservations in the visitor's
   browser localStorage. Full flow works: availability calendar, double-booking
   prevention, confirmation codes, viewing and cancelling.
-- **`SupabaseReservationStore`** — same contract against Postgres. The database schema
+- **`SupabaseReservationStore`** — same contract against Postgres (`bun add @supabase/supabase-js` is already done). The database schema
   (`supabase/schema.sql`) enforces no-overlapping-stays at the database level with an
   exclusion constraint, so double bookings are impossible even under race conditions.
 
