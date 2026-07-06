@@ -65,10 +65,11 @@ export function HeroVideos() {
   return (
     <div ref={containerRef} className="absolute inset-0" aria-hidden="true">
       {layout === "desktop" ? (
-        /* Diptych: two vertical panels with a hairline seam */
-        <div className="flex h-full w-full gap-px">
+        /* Diptych: two vertical panels with a theme-colored hairline seam
+           (an opaque divider — the backdrop photo must not peek through) */
+        <div className="flex h-full w-full">
           {FILMS.map((film, i) => (
-            <div key={film.src} className="relative h-full w-1/2 overflow-hidden">
+            <div key={film.src} className={`relative h-full w-1/2 overflow-hidden ${i > 0 ? "border-l border-sumi-950" : ""}`}>
               <video
                 ref={(el) => {
                   videoRefs.current[i] = el;
