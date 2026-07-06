@@ -4,13 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
+import { HeroVideos } from "@/components/home/HeroVideos";
 
 export function Hero() {
   const { t } = useLang();
 
   return (
     <section className="hero-section relative flex min-h-[100svh] items-end overflow-hidden">
-      {/* Backdrop */}
+      {/* Backdrop: photo first paint, the two films fade in over it */}
       <div className="hero-photo absolute inset-0">
         <Image
           src="/images/dining-dark-view.jpg"
@@ -20,6 +21,7 @@ export function Hero() {
           sizes="100vw"
           className="animate-kenburns object-cover"
         />
+        <HeroVideos />
         <div className="photo-scrim absolute inset-0" />
         <div className="hero-grad-y absolute inset-0" />
         <div className="hero-grad-x absolute inset-0" />
