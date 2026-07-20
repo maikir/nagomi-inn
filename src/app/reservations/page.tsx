@@ -16,6 +16,7 @@ export default function ReservationsPage() {
   const store = useMemo(() => getReservationStore(), []);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   const needsSignIn = authEnabled && !authLoading && !user;
@@ -54,31 +55,36 @@ export default function ReservationsPage() {
 
   async function confirmCancel(r: Reservation) {
     setNotice(null);
-    if (PAYMENTS_ON && authEnabled) {
-      // Paid bookings must cancel through the server so the Stripe refund
-      // happens atomically with the status change.
-      try {
-        const session = (await getSupabase()?.auth.getSession())?.data.session;
-        if (!session) throw new Error("no session");
-        const res = await fetch("/api/cancel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({ id: r.id }),
-        });
-        const json = (await res.json().catch(() => ({}))) as { cancelled?: boolean; refunded?: boolean };
-        if (!res.ok || !json.cancelled) throw new Error("cancel failed");
-        setNotice({ tone: "ok", text: json.refunded ? t.reservations.cancelledRefunded : t.reservations.cancelledPlain });
-      } catch {
-        setNotice({ tone: "error", text: t.reservations.cancelError });
-        setCancelling(null);
-        return;
+    setCancelBusy(true);
+    try {
+      if (PAYMENTS_ON && authEnabled) {
+        // Paid bookings must cancel through the server so the Stripe refund
+        // happens atomically with the status change.
+        try {
+          const session = (await getSupabase()?.auth.getSession())?.data.session;
+          if (!session) throw new Error("no session");
+          const res = await fetch("/api/cancel", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({ id: r.id }),
+          });
+          const json = (await res.json().catch(() => ({}))) as { cancelled?: boolean; refunded?: boolean };
+          if (!res.ok || !json.cancelled) throw new Error("cancel failed");
+          setNotice({ tone: "ok", text: json.refunded ? t.reservations.cancelledRefunded : t.reservations.cancelledPlain });
+        } catch {
+          setNotice({ tone: "error", text: t.reservations.cancelError });
+          setCancelling(null);
+          return;
+        }
+      } else {
+        await store.cancel(r.id);
+        setNotice({ tone: "ok", text: t.reservations.cancelledPlain });
       }
-    } else {
-      await store.cancel(r.id);
-      setNotice({ tone: "ok", text: t.reservations.cancelledPlain });
+      setReservations(await store.list());
+      setCancelling(null);
+    } finally {
+      setCancelBusy(false);
     }
-    setReservations(await store.list());
-    setCancelling(null);
   }
 
   return (
@@ -160,13 +166,21 @@ export default function ReservationsPage() {
                         <div className="flex flex-wrap items-center gap-4">
                           <button
                             onClick={() => confirmCancel(r)}
-                            className="border border-copper px-4 py-2 text-xs tracking-[0.2em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950"
+                            disabled={cancelBusy}
+                            className="flex items-center gap-2.5 border border-copper px-4 py-2 text-xs tracking-[0.2em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950 disabled:pointer-events-none disabled:opacity-60"
                           >
+                            {cancelBusy && (
+                              <span
+                                className="h-3.5 w-3.5 animate-spin rounded-full border border-current border-t-transparent"
+                                aria-hidden="true"
+                              />
+                            )}
                             {t.reservations.yesCancel}
                           </button>
                           <button
                             onClick={() => setCancelling(null)}
-                            className="border border-paper/30 px-4 py-2 text-xs tracking-[0.2em] text-paper"
+                            disabled={cancelBusy}
+                            className="border border-paper/30 px-4 py-2 text-xs tracking-[0.2em] text-paper disabled:opacity-40"
                           >
                             {t.reservations.keep}
                           </button>

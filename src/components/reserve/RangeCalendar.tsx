@@ -20,7 +20,7 @@ type Props = {
  * disabled; a range can't span a booked night.
  */
 export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
-  const { lang } = useLang();
+  const { lang, t } = useLang();
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -124,6 +124,7 @@ export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const iso = toISODate(new Date(month.getFullYear(), month.getMonth(), i + 1));
                   const disabled = isDisabled(iso);
+                  const isBooked = booked.has(iso) && iso >= today;
                   const isStart = iso === checkIn;
                   const isEnd = iso === checkOut;
                   const selected = isStart || isEnd;
@@ -139,13 +140,19 @@ export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
                       onMouseLeave={() => setHovered(null)}
                       className={[
                         "relative mx-auto grid h-10 w-10 place-items-center text-sm transition-colors",
-                        disabled && !selected ? "cursor-not-allowed text-paper-faint/40 line-through decoration-paper-faint/40" : "",
+                        // Booked night: filled/blacked-out cell, struck through
+                        isBooked && !selected
+                          ? "cursor-not-allowed bg-paper/15 text-paper-faint line-through decoration-paper-faint"
+                          : "",
+                        // Past date: simply faded
+                        disabled && !isBooked && !selected ? "cursor-not-allowed text-paper-faint/40" : "",
                         selected ? "bg-copper text-sumi-950 font-medium" : "",
                         !selected && within ? "bg-copper/20 text-paper" : "",
                         !selected && !within && !disabled ? "text-paper-dim hover:bg-paper/10 hover:text-paper" : "",
                       ].join(" ")}
                       aria-pressed={selected}
                       aria-label={iso}
+                      aria-disabled={disabled && !selected}
                     >
                       {i + 1}
                     </button>
@@ -155,6 +162,24 @@ export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
             </div>
           );
         })}
+      </div>
+
+      {/* Color key */}
+      <div className="mt-8 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-paper/10 pt-5 text-xs text-paper-dim">
+        <span className="flex items-center gap-2.5">
+          <span className="grid h-6 w-6 place-items-center border border-paper/20 text-[11px] text-paper-dim">1</span>
+          {t.reserve.legendOpen}
+        </span>
+        <span className="flex items-center gap-2.5">
+          <span className="grid h-6 w-6 place-items-center bg-paper/15 text-[11px] text-paper-faint line-through decoration-paper-faint">
+            1
+          </span>
+          {t.reserve.legendTaken}
+        </span>
+        <span className="flex items-center gap-2.5">
+          <span className="grid h-6 w-6 place-items-center bg-copper text-[11px] font-medium text-sumi-950">1</span>
+          {t.reserve.legendSelected}
+        </span>
       </div>
     </div>
   );
