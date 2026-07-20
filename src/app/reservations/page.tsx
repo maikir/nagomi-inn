@@ -4,8 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { formatYen } from "@/config/site";
+import { getSupabase } from "@/lib/supabase/client";
+import { formatYen, site } from "@/config/site";
 import { getReservationStore, formatDate, nightsBetween, type Reservation } from "@/lib/reservations";
+
+const PAYMENTS_ON = process.env.NEXT_PUBLIC_PAYMENTS === "stripe";
 
 export default function ReservationsPage() {
   const { t, lang } = useLang();
@@ -13,6 +16,7 @@ export default function ReservationsPage() {
   const store = useMemo(() => getReservationStore(), []);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
 
   const needsSignIn = authEnabled && !authLoading && !user;
 
@@ -42,8 +46,37 @@ export default function ReservationsPage() {
     );
   }
 
-  async function confirmCancel(id: string) {
-    await store.cancel(id);
+  /** Cancelling ≥ policy-days before check-in refunds the payment in full. */
+  function isRefundEligible(r: Reservation): boolean {
+    const days = Math.floor((new Date(r.checkIn + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
+    return days >= site.cancellation.fullRefundUntilDaysBefore;
+  }
+
+  async function confirmCancel(r: Reservation) {
+    setNotice(null);
+    if (PAYMENTS_ON && authEnabled) {
+      // Paid bookings must cancel through the server so the Stripe refund
+      // happens atomically with the status change.
+      try {
+        const session = (await getSupabase()?.auth.getSession())?.data.session;
+        if (!session) throw new Error("no session");
+        const res = await fetch("/api/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ id: r.id }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { cancelled?: boolean; refunded?: boolean };
+        if (!res.ok || !json.cancelled) throw new Error("cancel failed");
+        setNotice({ tone: "ok", text: json.refunded ? t.reservations.cancelledRefunded : t.reservations.cancelledPlain });
+      } catch {
+        setNotice({ tone: "error", text: t.reservations.cancelError });
+        setCancelling(null);
+        return;
+      }
+    } else {
+      await store.cancel(r.id);
+      setNotice({ tone: "ok", text: t.reservations.cancelledPlain });
+    }
     setReservations(await store.list());
     setCancelling(null);
   }
@@ -53,6 +86,17 @@ export default function ReservationsPage() {
       <p className="text-[11px] tracking-[0.35em] text-copper-bright">田舎民泊 和</p>
       <h1 className="mt-4 font-display text-4xl md:text-5xl">{t.reservations.title}</h1>
       <p className="mt-4 text-paper-dim">{t.reservations.subtitle}</p>
+
+      {notice && (
+        <p
+          role="status"
+          className={`mt-8 border px-5 py-4 text-sm ${
+            notice.tone === "ok" ? "border-moss/60 bg-moss/10 text-paper" : "border-copper/60 bg-copper/10 text-copper-bright"
+          }`}
+        >
+          {notice.text}
+        </p>
+      )}
 
       {reservations === null ? (
         <div className="mt-16 h-40 animate-pulse border border-paper/10 bg-sumi-900" />
@@ -103,20 +147,30 @@ export default function ReservationsPage() {
                 {r.status === "confirmed" && (
                   <div className="mt-6 border-t border-paper/10 pt-5">
                     {cancelling === r.id ? (
-                      <div className="flex flex-wrap items-center gap-4">
-                        <span className="text-sm text-copper-bright">{t.reservations.cancelConfirm}</span>
-                        <button
-                          onClick={() => confirmCancel(r.id)}
-                          className="border border-copper px-4 py-2 text-xs tracking-[0.2em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950"
-                        >
-                          {t.reservations.yesCancel}
-                        </button>
-                        <button
-                          onClick={() => setCancelling(null)}
-                          className="border border-paper/30 px-4 py-2 text-xs tracking-[0.2em] text-paper"
-                        >
-                          {t.reservations.keep}
-                        </button>
+                      <div className="space-y-3">
+                        <p className="text-sm text-copper-bright">{t.reservations.cancelConfirm}</p>
+                        {PAYMENTS_ON && authEnabled && (
+                          <p className="text-sm text-paper-dim">
+                            {fill(
+                              isRefundEligible(r) ? t.reservations.cancelRefundNote : t.reservations.cancelNoRefundNote,
+                              { n: site.cancellation.fullRefundUntilDaysBefore },
+                            )}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-4">
+                          <button
+                            onClick={() => confirmCancel(r)}
+                            className="border border-copper px-4 py-2 text-xs tracking-[0.2em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950"
+                          >
+                            {t.reservations.yesCancel}
+                          </button>
+                          <button
+                            onClick={() => setCancelling(null)}
+                            className="border border-paper/30 px-4 py-2 text-xs tracking-[0.2em] text-paper"
+                          >
+                            {t.reservations.keep}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button

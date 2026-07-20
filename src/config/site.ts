@@ -43,6 +43,15 @@ export const site = {
 
   checkIn: "15:00",
   checkOut: "10:00",
+
+  cancellation: {
+    /**
+     * Cancelling at least this many days before check-in → full refund.
+     * Closer than that → no refund (dates are still released).
+     * PLACEHOLDER policy — set this to the house rules you actually want.
+     */
+    fullRefundUntilDaysBefore: 7,
+  },
 } as const;
 
 export function formatYen(amount: number): string {

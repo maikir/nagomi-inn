@@ -84,8 +84,12 @@ Test card: `4242 4242 4242 4242`, any future expiry/CVC. To offer konbini paymen
 domestic guests later, add `"konbini"` to `payment_method_types` in
 `src/app/api/checkout/route.ts` and enable it in Stripe settings.
 
-Refunds/cancellations of paid stays: handle in the Stripe dashboard for now (the
-in-app cancel only releases the dates; it does not refund).
+**Cancellations & refunds:** in-app cancellation goes through `/api/cancel`, which
+refunds the Stripe payment in full when the guest cancels at least
+`site.cancellation.fullRefundUntilDaysBefore` days before check-in (default 7 —
+edit in `src/config/site.ts`), and releases the dates either way. Refund-eligible
+cancellations only complete if the refund succeeds. Partial-refund tiers or
+owner-initiated cancellations: use the Stripe dashboard.
 
 ## Airbnb / Booking.com calendar sync (iCal)
 
