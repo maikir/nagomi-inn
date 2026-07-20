@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { getSupabase } from "@/lib/supabase/client";
 import { site, formatYen } from "@/config/site";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import {
@@ -18,6 +19,9 @@ type Step = "dates" | "details" | "confirm" | "done";
 
 /** In-progress form state, kept across the sign-in redirect. */
 const DRAFT_KEY = "nagomi.reserveDraft";
+
+/** Stripe checkout is used when this build was configured for payments. */
+const PAYMENTS_ON = process.env.NEXT_PUBLIC_PAYMENTS === "stripe";
 
 type Draft = {
   step: Step;
@@ -130,6 +134,57 @@ export default function ReservePage() {
       router.push("/login?next=/reserve");
       return;
     }
+
+    // Payments mode: the server holds the dates, computes the real price and
+    // sends us to Stripe Checkout. The draft survives a cancelled payment.
+    if (PAYMENTS_ON && authEnabled) {
+      setSubmitting(true);
+      setError(null);
+      try {
+        const session = (await getSupabase()?.auth.getSession())?.data.session;
+        if (!session) {
+          router.push("/login?next=/reserve");
+          return;
+        }
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            checkIn,
+            checkOut,
+            guests,
+            name: name.trim(),
+            email: email.trim(),
+            phone: phone.trim() || undefined,
+            notes: notes.trim() || undefined,
+            lang,
+          }),
+        });
+        const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+        if (res.ok && json.url) {
+          window.location.href = json.url;
+          return; // keep `submitting` on while the browser navigates to Stripe
+        }
+        if (json.error === "UNAVAILABLE") {
+          setError(t.reserve.errorUnavailable);
+          setBooked(await store.bookedDates());
+          setStep("dates");
+        } else if (json.error === "AUTH_REQUIRED") {
+          router.push("/login?next=/reserve");
+        } else {
+          setError(t.reserve.payError);
+        }
+      } catch {
+        setError(t.reserve.payError);
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -319,6 +374,11 @@ export default function ReservePage() {
               {t.auth.signInToConfirm}
             </p>
           )}
+          {PAYMENTS_ON && authEnabled && user && (
+            <p className="mt-6 border border-paper/15 bg-sumi-900 px-5 py-4 text-sm text-paper-dim">
+              {t.reserve.payNote}
+            </p>
+          )}
         </div>
       )}
 
@@ -373,7 +433,12 @@ export default function ReservePage() {
               disabled={submitting}
               className="border border-copper bg-copper/10 px-10 py-4 text-xs tracking-[0.25em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950 disabled:opacity-50"
             >
-              {(submitting ? t.reserve.booking : t.reserve.confirmBooking).toUpperCase()}
+              {(submitting
+                ? t.reserve.booking
+                : PAYMENTS_ON && authEnabled
+                  ? t.reserve.payCta
+                  : t.reserve.confirmBooking
+              ).toUpperCase()}
             </button>
           ) : (
             <button

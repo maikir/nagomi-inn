@@ -71,6 +71,8 @@ export default function ReservationsPage() {
           {reservations.map((r) => {
             const nights = nightsBetween(r.checkIn, r.checkOut);
             const cancelled = r.status === "cancelled";
+            const statusColor =
+              r.status === "confirmed" ? "text-moss" : r.status === "pending" ? "text-copper-bright" : "text-paper-faint";
             return (
               <li
                 key={r.id}
@@ -80,9 +82,7 @@ export default function ReservationsPage() {
                   <div>
                     <p className="text-xs tracking-[0.25em] text-paper-faint">
                       {r.id} ・{" "}
-                      <span className={cancelled ? "text-paper-faint" : "text-moss"}>
-                        {cancelled ? t.reservations.status.cancelled : t.reservations.status.confirmed}
-                      </span>
+                      <span className={statusColor}>{t.reservations.status[r.status]}</span>
                     </p>
                     <p className="mt-3 font-display text-xl md:text-2xl">
                       {formatDate(r.checkIn, lang)} → {formatDate(r.checkOut, lang)}
@@ -98,7 +98,9 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
-                {!cancelled && (
+                {/* Pending rows are mid-payment: cancelling here couldn't stop the
+                    charge, so only confirmed stays offer cancellation. */}
+                {r.status === "confirmed" && (
                   <div className="mt-6 border-t border-paper/10 pt-5">
                     {cancelling === r.id ? (
                       <div className="flex flex-wrap items-center gap-4">

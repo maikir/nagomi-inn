@@ -61,8 +61,51 @@ Two implementations exist:
 The store factory (`src/lib/reservations/index.ts`) detects the env vars and switches
 automatically. The owner sees all bookings in the Supabase dashboard (Table Editor).
 
-> Notes for real launch: prices are still computed client-side (move the total into a
-> database trigger or server route before taking money), and there's no payment step.
+## Payments (Stripe)
+
+With payments on, bookings flow: confirm → `/api/checkout` holds the dates as a
+`pending` reservation and computes the price **server-side** → Stripe-hosted Checkout
+→ webhook flips the reservation to `confirmed` (or frees the dates if the session
+expires unpaid after 30 min). Cancelled payments return to the reserve page with the
+form intact.
+
+Setup:
+1. Run `supabase/stripe-ical-migration.sql` in the Supabase SQL editor.
+   ⚠ After this migration, bookings REQUIRE payment — direct client confirmation is
+   blocked at the database level. Do it when you're ready to set the env vars.
+2. Stripe dashboard (test mode first): copy the secret key; add a webhook endpoint
+   `https://<domain>/api/stripe-webhook` for `checkout.session.completed` and
+   `checkout.session.expired`; copy its signing secret.
+3. Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`,
+   and `NEXT_PUBLIC_PAYMENTS=stripe` (locally in `.env.local` and on Vercel), redeploy.
+4. Local webhook testing: `stripe listen --forward-to localhost:3000/api/stripe-webhook`.
+
+Test card: `4242 4242 4242 4242`, any future expiry/CVC. To offer konbini payments to
+domestic guests later, add `"konbini"` to `payment_method_types` in
+`src/app/api/checkout/route.ts` and enable it in Stripe settings.
+
+Refunds/cancellations of paid stays: handle in the Stripe dashboard for now (the
+in-app cancel only releases the dates; it does not refund).
+
+## Airbnb / Booking.com calendar sync (iCal)
+
+Two directions, both dates-only:
+
+- **Export** — `/api/calendar.ics?token=…` lists direct bookings (confirmed + pending
+  holds). Paste this URL into Airbnb → Calendar → Availability → Import calendar, and
+  Booking.com → Rates & Availability → Sync calendars.
+- **Import** — the OTAs' export links go in `ICAL_IMPORT_URLS`. The sync writes them
+  to `external_blocks`; the availability calendar and a database trigger both treat
+  those dates as taken. Sync runs (a) daily via Vercel Cron (`vercel.json`) and
+  (b) automatically during any checkout if data is older than 15 minutes — so the
+  riskiest moment (a guest about to pay) always checks fresh data. Trigger it
+  manually anytime: `GET /api/ical-sync?token=<CRON_SECRET>`.
+
+Known limitation of iCal (all platforms): OTAs re-read your feed only every 1–3 h, so
+a short double-booking window exists in the OTA→OTA and website→OTA directions. For a
+single property this is normally acceptable; if volume grows, a channel manager
+(Beds24, Smoobu, …) with API-level sync is the upgrade path.
+
 > A Redis cache in front of `bookedDates()` is unnecessary at this traffic level.
 
 ## Languages

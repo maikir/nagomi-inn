@@ -1,5 +1,6 @@
 /** Dates are ISO strings, YYYY-MM-DD. checkOut is exclusive (departure day). */
-export type ReservationStatus = "confirmed" | "cancelled";
+/** 'pending' = dates held while payment is in progress (Stripe mode only). */
+export type ReservationStatus = "pending" | "confirmed" | "cancelled";
 
 export interface Reservation {
   id: string;

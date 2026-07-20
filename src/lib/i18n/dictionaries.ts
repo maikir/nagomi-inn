@@ -143,6 +143,12 @@ export const en = {
     errorUnavailable: "Those dates are no longer available. Please choose different dates.",
     unavailable: "Unavailable",
     minNightsNote: "Minimum stay: {n} night(s)",
+    payCta: "Proceed to payment",
+    payNote: "You'll complete payment securely with Stripe. The dates are held for 30 minutes.",
+    payError: "The payment service couldn't be reached. Please try again.",
+    successConfirming: "Confirming your payment…",
+    successConfirmingBody: "One moment — we're finalizing your reservation with the payment provider.",
+    successSlow: "Payment received. Your confirmation is taking a little longer than usual — it will appear in “My reservations” shortly.",
   },
 
   reservations: {
@@ -150,7 +156,7 @@ export const en = {
     subtitle: "Reservations made on this device.",
     empty: "No reservations yet.",
     emptyCta: "Plan your stay",
-    status: { confirmed: "Confirmed", cancelled: "Cancelled" },
+    status: { pending: "Payment processing", confirmed: "Confirmed", cancelled: "Cancelled" },
     guestsLabel: "Guests",
     totalLabel: "Total",
     bookedOn: "Reserved on",
@@ -327,6 +333,12 @@ export const ja: typeof en = {
     errorUnavailable: "選択された日程は満室となりました。別の日程をお選びください。",
     unavailable: "満室",
     minNightsNote: "最短{n}泊から",
+    payCta: "お支払いへ進む",
+    payNote: "Stripeの安全な決済ページでお支払いいただきます。日程は30分間確保されます。",
+    payError: "決済サービスに接続できませんでした。もう一度お試しください。",
+    successConfirming: "お支払いを確認しています…",
+    successConfirmingBody: "決済の確認中です。少々お待ちください。",
+    successSlow: "お支払いは完了しています。確定処理に少し時間がかかっています。まもなく「予約の確認」に表示されます。",
   },
 
   reservations: {
@@ -334,7 +346,7 @@ export const ja: typeof en = {
     subtitle: "この端末で行われたご予約の一覧です。",
     empty: "まだ予約はありません。",
     emptyCta: "宿泊を計画する",
-    status: { confirmed: "確定", cancelled: "キャンセル済み" },
+    status: { pending: "お支払い確認中", confirmed: "確定", cancelled: "キャンセル済み" },
     guestsLabel: "ご人数",
     totalLabel: "合計",
     bookedOn: "予約日",
