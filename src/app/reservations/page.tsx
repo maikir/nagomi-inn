@@ -3,18 +3,44 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { formatYen } from "@/config/site";
 import { getReservationStore, formatDate, nightsBetween, type Reservation } from "@/lib/reservations";
 
 export default function ReservationsPage() {
   const { t, lang } = useLang();
+  const { enabled: authEnabled, user, loading: authLoading } = useAuth();
   const store = useMemo(() => getReservationStore(), []);
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
 
+  const needsSignIn = authEnabled && !authLoading && !user;
+
   useEffect(() => {
-    store.list().then(setReservations);
-  }, [store]);
+    if (authEnabled && !user) {
+      setReservations(null);
+      return;
+    }
+    store.list().then(setReservations).catch(() => setReservations([]));
+  }, [store, authEnabled, user]);
+
+  if (needsSignIn) {
+    return (
+      <div className="mx-auto max-w-4xl px-5 pb-28 pt-28 md:px-8 md:pt-36">
+        <p className="text-[11px] tracking-[0.35em] text-copper-bright">田舎民泊 和</p>
+        <h1 className="mt-4 font-display text-4xl md:text-5xl">{t.reservations.title}</h1>
+        <div className="mt-16 border border-paper/15 bg-sumi-900 px-8 py-16 text-center">
+          <p className="font-display text-2xl text-paper-dim">{t.auth.signInToView}</p>
+          <Link
+            href="/login?next=/reservations"
+            className="mt-8 inline-block border border-copper px-8 py-4 text-xs tracking-[0.25em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950"
+          >
+            {t.auth.signIn.toUpperCase()}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   async function confirmCancel(id: string) {
     await store.cancel(id);

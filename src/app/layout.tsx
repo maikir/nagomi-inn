@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Shippori_Mincho, Zen_Kaku_Gothic_New } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { Nav } from "@/components/Nav";
 import { Footer } from "@/components/Footer";
 import { site } from "@/config/site";
@@ -52,9 +53,11 @@ export default function RootLayout({
       </head>
       <body>
         <LanguageProvider>
-          <Nav />
-          <main>{children}</main>
-          <Footer />
+          <AuthProvider>
+            <Nav />
+            <main>{children}</main>
+            <Footer />
+          </AuthProvider>
         </LanguageProvider>
       </body>
     </html>

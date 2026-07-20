@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccountMenu } from "@/components/AccountMenu";
 
 export function Nav() {
   const { lang, setLang, t } = useLang();
@@ -71,12 +72,14 @@ export function Nav() {
           </Link>
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
+          <AccountMenu />
         </nav>
 
-        {/* Mobile: language + theme + menu button */}
+        {/* Mobile: language + theme + account + menu button */}
         <div className="flex items-center gap-4 lg:hidden">
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
+          <AccountMenu />
           <button
             aria-label="Menu"
             aria-expanded={open}

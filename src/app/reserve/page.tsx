@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { site, formatYen } from "@/config/site";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import {
@@ -14,8 +16,24 @@ import {
 
 type Step = "dates" | "details" | "confirm" | "done";
 
+/** In-progress form state, kept across the sign-in redirect. */
+const DRAFT_KEY = "nagomi.reserveDraft";
+
+type Draft = {
+  step: Step;
+  checkIn: string | null;
+  checkOut: string | null;
+  guests: number;
+  name: string;
+  email: string;
+  phone: string;
+  notes: string;
+};
+
 export default function ReservePage() {
   const { t, lang } = useLang();
+  const router = useRouter();
+  const { enabled: authEnabled, user } = useAuth();
   const store = useMemo(() => getReservationStore(), []);
 
   const [step, setStep] = useState<Step>("dates");
@@ -30,10 +48,50 @@ export default function ReservePage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
+  // Saving is disabled until restoration has committed — the flag is set in the
+  // same batch as the restored values, so a save can never observe pre-restore
+  // state (this also survives StrictMode's double effect run in dev).
+  const [draftReady, setDraftReady] = useState(false);
 
   useEffect(() => {
-    store.bookedDates().then(setBooked);
+    store.bookedDates().then(setBooked).catch(() => {});
   }, [store]);
+
+  // Restore an in-progress draft (e.g. coming back from the sign-in redirect).
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const d = JSON.parse(raw) as Draft;
+        setStep(d.step === "done" ? "dates" : d.step);
+        setCheckIn(d.checkIn);
+        setCheckOut(d.checkOut);
+        setGuests(d.guests);
+        setName(d.name);
+        setEmail(d.email);
+        setPhone(d.phone);
+        setNotes(d.notes);
+      }
+    } catch {}
+    setDraftReady(true);
+  }, []);
+
+  // Keep the draft current while the visitor fills the form.
+  useEffect(() => {
+    if (!draftReady || step === "done") return;
+    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes };
+    try {
+      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {}
+  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes]);
+
+  // Signed-in guests get their details prefilled.
+  useEffect(() => {
+    if (!user) return;
+    setEmail((cur) => cur || user.email || "");
+    const fullName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? "") as string;
+    if (fullName) setName((cur) => cur || fullName);
+  }, [user]);
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
   const p = site.pricing;
@@ -66,6 +124,12 @@ export default function ReservePage() {
 
   async function submit() {
     if (!checkIn || !checkOut) return;
+    // Reserving requires an account when Supabase is connected. The draft is
+    // already in sessionStorage, so nothing is lost across the redirect.
+    if (authEnabled && !user) {
+      router.push("/login?next=/reserve");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -81,12 +145,17 @@ export default function ReservePage() {
       });
       setConfirmed(reservation);
       setStep("done");
+      try {
+        window.sessionStorage.removeItem(DRAFT_KEY);
+      } catch {}
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       if (e instanceof Error && e.message === "UNAVAILABLE") {
         setError(t.reserve.errorUnavailable);
         setBooked(await store.bookedDates());
         setStep("dates");
+      } else if (e instanceof Error && e.message === "AUTH_REQUIRED") {
+        router.push("/login?next=/reserve");
       } else {
         setError(String(e));
       }
@@ -245,6 +314,11 @@ export default function ReservePage() {
             {notes && <Row label={t.reserve.notes} value={notes} />}
             <Row label={t.reserve.total} value={formatYen(total)} strong />
           </dl>
+          {authEnabled && !user && (
+            <p className="mt-6 border border-paper/15 bg-sumi-900 px-5 py-4 text-sm text-paper-dim">
+              {t.auth.signInToConfirm}
+            </p>
+          )}
         </div>
       )}
 

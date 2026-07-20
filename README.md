@@ -30,33 +30,40 @@ bun run dev        # http://localhost:3000
 | Photos | `public/images/` (referenced in `src/components/home/*.tsx`) |
 | House names / descriptions (母屋・離れ are editable suggestions) | `src/lib/i18n/dictionaries.ts` → `spaces` |
 
-## Reservations: demo mode → Supabase
+## Reservations & login: demo mode → Supabase
 
 The UI talks only to the `ReservationStore` interface (`src/lib/reservations/types.ts`).
 Two implementations exist:
 
-- **`LocalReservationStore`** *(active now)* — stores reservations in the visitor's
-  browser localStorage. Full flow works: availability calendar, double-booking
-  prevention, confirmation codes, viewing and cancelling.
-- **`SupabaseReservationStore`** — same contract against Postgres (`bun add @supabase/supabase-js` is already done). The database schema
-  (`supabase/schema.sql`) enforces no-overlapping-stays at the database level with an
-  exclusion constraint, so double bookings are impossible even under race conditions.
+- **`LocalReservationStore`** — active when no Supabase env vars are set. Reservations
+  live in the visitor's browser localStorage; no login. Good for previewing.
+- **`SupabaseReservationStore`** — real database + accounts. Guests sign in
+  (Google / Apple / email+password) to confirm a reservation; RLS scopes reads and
+  cancellations to each guest's own bookings; public availability comes from the
+  dates-only `booked_ranges` view (no personal data exposed). The exclusion
+  constraint in Postgres makes overlapping confirmed stays impossible, even under
+  race conditions.
 
-To switch: create a Supabase project, run `supabase/schema.sql` in its SQL editor, then
-set in `.env.local` (and on Vercel):
+### Switching Supabase on
 
-```
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
+1. **Database** — run `supabase/schema.sql` in the Supabase SQL editor once.
+2. **Env vars** — copy `.env.example` to `.env.local` and paste the Project URL and
+   anon key (Project Settings → API). Add the same two vars in Vercel.
+3. **Auth providers** — Supabase dashboard → Authentication:
+   - *Email* is on by default (leave "Confirm email" on).
+   - *Google*: create an OAuth client in Google Cloud Console, paste its ID/secret.
+   - *Apple*: needs an Apple Developer account (Services ID + key). Optional at first.
+   - *URL Configuration*: set Site URL to the production domain; add
+     `http://localhost:3000/**` to Redirect URLs for local dev.
+4. **LINE** is not natively supported by Supabase Auth. If it becomes important,
+   the options are a custom OIDC bridge (Edge Function) or an aggregator like WorkOS.
 
-The store factory (`src/lib/reservations/index.ts`) detects the vars and switches
-automatically. No other code changes.
+The store factory (`src/lib/reservations/index.ts`) detects the env vars and switches
+automatically. The owner sees all bookings in the Supabase dashboard (Table Editor).
 
-> ⚠ The included RLS policies are demo-grade (public read/insert). Before taking real
-> bookings, move writes behind a server route and add payments/auth as needed.
-> A Redis layer (e.g. Upstash) could later front `bookedDates()` for caching, but at
-> this traffic level Postgres alone is plenty.
+> Notes for real launch: prices are still computed client-side (move the total into a
+> database trigger or server route before taking money), and there's no payment step.
+> A Redis cache in front of `bookedDates()` is unnecessary at this traffic level.
 
 ## Languages
 

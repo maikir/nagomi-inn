@@ -1,20 +1,14 @@
 import type { NewReservation, Reservation, ReservationStore } from "./types";
 import { nightsOf } from "./dates";
+import { getSupabase } from "@/lib/supabase/client";
 
 /**
- * Supabase (Postgres) implementation — ready to switch on.
- *
- * To go live:
- *   1. Create a Supabase project and run supabase/schema.sql in the SQL editor.
- *   2. `npm install @supabase/supabase-js` (already in package.json).
- *   3. Set in .env.local (and on Vercel):
- *        NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
- *        NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
- *   4. That's it — the store factory (index.ts) picks this class up automatically
- *      when both env vars are present.
+ * Supabase (Postgres) implementation — active once NEXT_PUBLIC_SUPABASE_URL /
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY are set (see supabase/schema.sql for the
+ * database side). Reservations require a signed-in user; RLS scopes reads and
+ * cancellations to the reservation's owner. Availability comes from the
+ * public `booked_ranges` view (dates only).
  */
-
-type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
 
 type Row = {
   id: string;
@@ -47,23 +41,14 @@ function toReservation(row: Row): Reservation {
 }
 
 export class SupabaseReservationStore implements ReservationStore {
-  private clientPromise: Promise<SupabaseClient> | null = null;
-
-  private client(): Promise<SupabaseClient> {
-    if (!this.clientPromise) {
-      this.clientPromise = import("@supabase/supabase-js").then(({ createClient }) =>
-        createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        ),
-      );
-    }
-    return this.clientPromise;
+  private client() {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase is not configured");
+    return supabase;
   }
 
   async list(): Promise<Reservation[]> {
-    const supabase = await this.client();
-    const { data, error } = await supabase
+    const { data, error } = await this.client()
       .from("reservations")
       .select("*")
       .order("check_in", { ascending: true });
@@ -72,15 +57,17 @@ export class SupabaseReservationStore implements ReservationStore {
   }
 
   async get(id: string): Promise<Reservation | null> {
-    const supabase = await this.client();
-    const { data, error } = await supabase.from("reservations").select("*").eq("id", id).maybeSingle();
+    const { data, error } = await this.client()
+      .from("reservations")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
     if (error) throw error;
     return data ? toReservation(data as Row) : null;
   }
 
   async create(input: NewReservation): Promise<Reservation> {
-    const supabase = await this.client();
-    const { data, error } = await supabase
+    const { data, error } = await this.client()
       .from("reservations")
       .insert({
         check_in: input.checkIn,
@@ -91,29 +78,33 @@ export class SupabaseReservationStore implements ReservationStore {
         phone: input.phone ?? null,
         notes: input.notes ?? null,
         total_yen: input.totalYen,
+        // user_id defaults to auth.uid() in the database
       })
       .select()
       .single();
     if (error) {
-      // 23P01 = exclusion constraint violation (overlapping stay) — see schema.sql
-      if ((error as { code?: string }).code === "23P01") throw new Error("UNAVAILABLE");
+      const code = (error as { code?: string }).code;
+      // 23P01 = exclusion constraint violation (overlapping stay)
+      if (code === "23P01") throw new Error("UNAVAILABLE");
+      // 42501 = RLS denied (not signed in)
+      if (code === "42501") throw new Error("AUTH_REQUIRED");
       throw error;
     }
     return toReservation(data as Row);
   }
 
   async cancel(id: string): Promise<void> {
-    const supabase = await this.client();
-    const { error } = await supabase.from("reservations").update({ status: "cancelled" }).eq("id", id);
+    const { error } = await this.client()
+      .from("reservations")
+      .update({ status: "cancelled" })
+      .eq("id", id);
     if (error) throw error;
   }
 
   async bookedDates(): Promise<Set<string>> {
-    const supabase = await this.client();
-    const { data, error } = await supabase
-      .from("reservations")
-      .select("check_in, check_out")
-      .eq("status", "confirmed");
+    const { data, error } = await this.client()
+      .from("booked_ranges")
+      .select("check_in, check_out");
     if (error) throw error;
     const taken = new Set<string>();
     for (const row of data as Pick<Row, "check_in" | "check_out">[]) {
