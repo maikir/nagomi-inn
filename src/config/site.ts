@@ -11,6 +11,9 @@ export const site = {
   kanji: "和",
   fullName: "Nagomi Inn Miyazaki",
   tagline: "田舎民泊 和",
+  /** Tagline shown next to the 和 logo mark (nav/footer) — drops the kanji
+   *  so it isn't repeated right beside the logo. */
+  taglineLockup: "田舎民泊",
   url: "https://nagomi-inn.example.com", // replace with the production domain
 
   contact: {

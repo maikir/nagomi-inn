@@ -18,7 +18,7 @@ export function Footer() {
               </span>
               <div className="leading-none">
                 <p className="font-display text-xl tracking-[0.3em]">{site.name}</p>
-                <p className="mt-1.5 text-[10px] tracking-[0.25em] text-paper-dim">{site.tagline}</p>
+                <p className="mt-1.5 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</p>
               </div>
             </div>
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-paper-dim">{t.footer.blurb}</p>

@@ -49,7 +49,7 @@ export function Nav() {
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-display text-lg tracking-[0.3em]">{site.name}</span>
-            <span className="mt-1 text-[10px] tracking-[0.25em] text-paper-dim">{site.tagline}</span>
+            <span className="mt-1 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</span>
           </span>
         </Link>
 
