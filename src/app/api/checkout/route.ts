@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   if (
     !checkIn || !checkOut || !ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut) ||
     checkOut <= checkIn || checkIn < today ||
-    !guests || !Number.isInteger(guests) || guests < 1 || guests > p.maxGuests ||
+    !guests || !Number.isInteger(guests) || guests < p.minGuests || guests > p.maxGuests ||
     !name?.trim() || !email?.trim()
   ) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { site } from "@/config/site";
 import { getSupabaseAdmin, getSupabaseAsUser } from "@/lib/server/supabaseAdmin";
+import { refundTierFor } from "@/lib/reservations/cancellation";
 
 /**
  * POST /api/cancel  { id: "NGM-XXXXXX" }
- * Cancels the caller's own reservation and, when the stay was paid and the
- * cancellation policy allows it (site.cancellation), refunds the payment
- * through Stripe. Refund-eligible cancellations only complete if the refund
- * succeeds — money and reservation state never diverge.
+ * Cancels the caller's own reservation, refunding the tier the policy allows
+ * (100% / 50% / 0% — see lib/reservations/cancellation.ts). Refund-bearing
+ * cancellations only complete if the Stripe refund succeeds — money and
+ * reservation state never diverge.
  */
 
 export const dynamic = "force-dynamic";
@@ -36,21 +36,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "NOT_CANCELLABLE" }, { status: 400 });
   }
 
-  const daysUntilCheckIn = Math.floor(
-    (new Date(reservation.check_in + "T00:00:00Z").getTime() - Date.now()) / 86_400_000,
-  );
-  const refundable =
-    Boolean(reservation.paid_at && reservation.stripe_session_id) &&
-    daysUntilCheckIn >= site.cancellation.fullRefundUntilDaysBefore;
+  const paid = Boolean(reservation.paid_at && reservation.stripe_session_id);
+  const { refundPercent } = refundTierFor(reservation.check_in as string);
+  const refundYen = paid ? Math.round(((reservation.total_yen as number) * refundPercent) / 100) : 0;
 
-  if (refundable) {
+  if (refundYen > 0) {
     try {
       const stripe = new Stripe(stripeKey);
       const session = await stripe.checkout.sessions.retrieve(reservation.stripe_session_id as string);
       const paymentIntent =
         typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
       if (!paymentIntent) throw new Error("no payment intent on session");
-      await stripe.refunds.create({ payment_intent: paymentIntent });
+      // JPY is zero-decimal: `amount` is in yen. Full tier still gets an
+      // explicit amount so the charge and refund always reconcile.
+      await stripe.refunds.create({ payment_intent: paymentIntent, amount: refundYen });
     } catch (e) {
       // Refund didn't go through → keep the reservation confirmed so the
       // guest can retry or contact the owner; nothing is silently lost.
@@ -66,8 +65,8 @@ export async function POST(req: Request) {
     .eq("status", "confirmed");
   if (updateError) {
     console.error("cancel update failed after refund:", id, updateError);
-    return NextResponse.json({ error: "DB_ERROR", refunded: refundable }, { status: 500 });
+    return NextResponse.json({ error: "DB_ERROR", refundPercent, refundYen }, { status: 500 });
   }
 
-  return NextResponse.json({ cancelled: true, refunded: refundable });
+  return NextResponse.json({ cancelled: true, refundPercent, refundYen });
 }

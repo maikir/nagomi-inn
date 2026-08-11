@@ -284,7 +284,7 @@ export default function ReservePage() {
               <div className="mt-6 flex items-center gap-6">
                 <button
                   type="button"
-                  onClick={() => setGuests(Math.max(1, guests - 1))}
+                  onClick={() => setGuests(Math.max(p.minGuests, guests - 1))}
                   className="grid h-12 w-12 place-items-center border border-paper/30 text-xl text-paper transition-colors hover:border-copper hover:text-copper-bright"
                   aria-label="Fewer guests"
                 >
@@ -555,6 +555,16 @@ function Summary(props: {
       ) : (
         <p className="mt-6 text-sm text-paper-faint">{t.reserve.selectDatesHint}</p>
       )}
+
+      {/* Cancellation policy */}
+      <div className="mt-8 border-t border-paper/10 pt-6">
+        <h4 className="text-[10px] tracking-[0.3em] text-paper-faint">{t.reserve.policyTitle.toUpperCase()}</h4>
+        <ul className="mt-3 space-y-1.5 text-xs leading-relaxed text-paper-faint">
+          <li>{t.reserve.policyFree}</li>
+          <li>{t.reserve.policyHalf}</li>
+          <li>{t.reserve.policyFull}</li>
+        </ul>
+      </div>
     </aside>
   );
 }

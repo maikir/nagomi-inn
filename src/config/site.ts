@@ -28,15 +28,16 @@ export const site = {
 
   pricing: {
     currency: "JPY",
-    /** Whole-property base rate per night (both houses). PLACEHOLDER value. */
-    baseNightly: 66_000,
+    /** 2〜8名 ¥80,000/1泊 — whole-property base rate per night. */
+    baseNightly: 80_000,
     /** Guests included in the base rate. */
-    includedGuests: 6,
-    /** Per additional guest, per night. PLACEHOLDER value. */
-    perGuestNightly: 4_400,
-    /** One-time cleaning fee per stay. PLACEHOLDER value. */
-    cleaningFee: 16_500,
-    maxGuests: 18,
+    includedGuests: 8,
+    /** 9名以上 ¥5,000/人 per night. */
+    perGuestNightly: 5_000,
+    /** No separate cleaning fee — included in the nightly rate. */
+    cleaningFee: 0,
+    minGuests: 2,
+    maxGuests: 18, // ¥80,000〜¥130,000/1泊
     minNights: 1,
     maxNights: 14,
   },
@@ -44,13 +45,21 @@ export const site = {
   checkIn: "15:00",
   checkOut: "10:00",
 
+  /**
+   * キャンセルポリシー
+   *   チェックイン5日前まで無料
+   *   4日前〜1日前　キャンセル料50%
+   *   当日（チェックイン24時間以内＝前日15時以降）100%
+   * Tier boundaries are computed in JST in src/lib/reservations/cancellation.ts
+   * — that file is the single source of truth for the refund math.
+   */
   cancellation: {
-    /**
-     * Cancelling at least this many days before check-in → full refund.
-     * Closer than that → no refund (dates are still released).
-     * PLACEHOLDER policy — set this to the house rules you actually want.
-     */
-    fullRefundUntilDaysBefore: 7,
+    /** Cancelling on/before this many days ahead of check-in → free. */
+    freeUntilDaysBefore: 5,
+    /** Inside the free boundary but before the same-day window → 50% fee. */
+    lateFeePercent: 50,
+    /** Within 24h of check-in (after 15:00 the day before) → 100% fee. */
+    sameDayFeePercent: 100,
   },
 } as const;
 

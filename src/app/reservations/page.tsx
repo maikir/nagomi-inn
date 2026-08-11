@@ -5,8 +5,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
-import { formatYen, site } from "@/config/site";
+import { formatYen } from "@/config/site";
 import { getReservationStore, formatDate, nightsBetween, type Reservation } from "@/lib/reservations";
+import { refundTierFor } from "@/lib/reservations/cancellation";
 
 const PAYMENTS_ON = process.env.NEXT_PUBLIC_PAYMENTS === "stripe";
 
@@ -47,10 +48,14 @@ export default function ReservationsPage() {
     );
   }
 
-  /** Cancelling ≥ policy-days before check-in refunds the payment in full. */
-  function isRefundEligible(r: Reservation): boolean {
-    const days = Math.floor((new Date(r.checkIn + "T00:00:00Z").getTime() - Date.now()) / 86_400_000);
-    return days >= site.cancellation.fullRefundUntilDaysBefore;
+  /** Warning text for the confirm dialog, per the policy tier that applies now. */
+  function cancelWarning(r: Reservation): string {
+    const { refundPercent } = refundTierFor(r.checkIn);
+    const total = formatYen(r.totalYen);
+    if (refundPercent === 100) return fill(t.reservations.cancelFreeNote, { total });
+    if (refundPercent === 50)
+      return fill(t.reservations.cancelHalfNote, { total, refund: formatYen(Math.round(r.totalYen / 2)) });
+    return t.reservations.cancelNoneNote;
   }
 
   async function confirmCancel(r: Reservation) {
@@ -68,9 +73,21 @@ export default function ReservationsPage() {
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
             body: JSON.stringify({ id: r.id }),
           });
-          const json = (await res.json().catch(() => ({}))) as { cancelled?: boolean; refunded?: boolean };
+          const json = (await res.json().catch(() => ({}))) as {
+            cancelled?: boolean;
+            refundPercent?: number;
+            refundYen?: number;
+          };
           if (!res.ok || !json.cancelled) throw new Error("cancel failed");
-          setNotice({ tone: "ok", text: json.refunded ? t.reservations.cancelledRefunded : t.reservations.cancelledPlain });
+          setNotice({
+            tone: "ok",
+            text:
+              json.refundPercent === 100
+                ? t.reservations.cancelledRefunded
+                : json.refundPercent === 50
+                  ? fill(t.reservations.cancelledHalf, { refund: formatYen(json.refundYen ?? 0) })
+                  : t.reservations.cancelledNone,
+          });
         } catch {
           setNotice({ tone: "error", text: t.reservations.cancelError });
           setCancelling(null);
@@ -156,12 +173,7 @@ export default function ReservationsPage() {
                       <div className="space-y-3">
                         <p className="text-sm text-copper-bright">{t.reservations.cancelConfirm}</p>
                         {PAYMENTS_ON && authEnabled && (
-                          <p className="text-sm text-paper-dim">
-                            {fill(
-                              isRefundEligible(r) ? t.reservations.cancelRefundNote : t.reservations.cancelNoRefundNote,
-                              { n: site.cancellation.fullRefundUntilDaysBefore },
-                            )}
-                          </p>
+                          <p className="text-sm text-paper-dim">{cancelWarning(r)}</p>
                         )}
                         <div className="flex flex-wrap items-center gap-4">
                           <button
