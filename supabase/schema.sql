@@ -31,7 +31,7 @@ create table if not exists public.reservations (
   user_id    uuid not null default auth.uid() references auth.users (id) on delete cascade,
   check_in   date not null,
   check_out  date not null,
-  guests     int  not null check (guests between 1 and 16),
+  guests     int  not null check (guests between 1 and 18),
   name       text not null,
   email      text not null,
   phone      text,
