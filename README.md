@@ -1,7 +1,7 @@
 # 和 NAGOMI — Inn website
 
 Website for **田舎民泊 和 / Nagomi Inn Miyazaki** — a private two-house inn with a barrel
-sauna for up to 16 guests. Built with Next.js 14 (App Router) + Tailwind, ready for
+sauna for up to 18 guests. Built with Next.js 14 (App Router) + Tailwind, ready for
 Vercel, with a reservation system that runs on browser localStorage today and swaps to
 Supabase by setting two environment variables.
 

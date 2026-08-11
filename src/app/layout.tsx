@@ -25,11 +25,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(site.url),
   title: `${site.name} 和 — ${site.fullName} | Private inn & sauna in Miyazaki, Kyushu`,
   description:
-    "A private countryside inn (民泊) for up to 16 guests in Miyazaki, Japan. Two whole houses, a cedar barrel sauna with cold plunge, and rice-field views. Built by an architect, rented in its entirety.",
+    "A private countryside inn (民泊) for up to 18 guests in Miyazaki, Japan. Two whole houses, a cedar barrel sauna with cold plunge, and rice-field views. Built by an architect, rented in its entirety.",
   openGraph: {
     title: `${site.name} 和 — ${site.fullName}`,
     description:
-      "Two whole houses, a barrel sauna, and the quiet of Miyazaki's rice fields. A private inn for up to 16 guests.",
+      "Two whole houses, a barrel sauna, and the quiet of Miyazaki's rice fields. A private inn for up to 18 guests.",
     images: ["/images/sauna-exterior.jpg"],
     locale: "ja_JP",
     alternateLocale: "en_US",

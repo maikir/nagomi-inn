@@ -36,7 +36,7 @@ export const site = {
     perGuestNightly: 4_400,
     /** One-time cleaning fee per stay. PLACEHOLDER value. */
     cleaningFee: 16_500,
-    maxGuests: 16,
+    maxGuests: 18,
     minNights: 1,
     maxNights: 14,
   },
