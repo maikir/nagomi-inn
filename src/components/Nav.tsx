@@ -26,12 +26,13 @@ export function Nav() {
 
   useEffect(() => setOpen(false), [pathname]);
 
+  // 予約の確認 is no longer a top-level tab — it lives in the account menu
+  // (avatar dropdown when signed in; the login button leads there otherwise).
   const links = [
     { href: "/#stay", label: t.nav.stay },
     { href: "/#sauna", label: t.nav.sauna },
     { href: "/#gallery", label: t.nav.gallery },
     { href: "/#access", label: t.nav.access },
-    { href: "/reservations", label: t.nav.myReservations },
   ];
 
   const solid = scrolled || !onHome || open;

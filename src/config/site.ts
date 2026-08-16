@@ -18,15 +18,13 @@ export const site = {
 
   contact: {
     email: "info@nagomi-inn.jp", // PLACEHOLDER
-    phone: "+81 90-0000-0000", // PLACEHOLDER
+    phone: "+81 70-6461-0434",
     instagram: "nagomi_inn_miyazaki", // PLACEHOLDER (handle only, no @)
   },
 
   location: {
     en: "Miyazaki Prefecture, Kyushu, Japan",
-    ja: "宮崎県",
-    airportNoteEn: "Nearest airport: Kagoshima (KOJ)",
-    airportNoteJa: "最寄り空港：鹿児島空港（KOJ）",
+    ja: "宮崎県"
   },
 
   pricing: {

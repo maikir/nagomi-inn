@@ -22,10 +22,6 @@ export function Footer() {
               </div>
             </div>
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-paper-dim">{t.footer.blurb}</p>
-            <p className="mt-4 text-xs tracking-wider text-paper-faint">
-              {lang === "ja" ? site.location.ja : site.location.en} ・{" "}
-              {lang === "ja" ? site.location.airportNoteJa : site.location.airportNoteEn}
-            </p>
           </div>
 
           <div>

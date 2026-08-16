@@ -1,0 +1,10 @@
+import { webkit } from "playwright-core";
+import os from "os";
+const exe = os.homedir() + "/Library/Caches/ms-playwright/webkit-2311/pw_run.sh";
+const browser = await webkit.launch({ executablePath: exe, timeout: 30000 });
+const page = await browser.newPage({ viewport: { width: 1440, height: 400 } });
+await page.goto("http://localhost:3142", { waitUntil: "domcontentloaded", timeout: 20000 });
+await page.waitForTimeout(1800);
+await page.screenshot({ path: process.env.SCRATCH + "/X1-nav-lockup.png", clip: { x: 0, y: 0, width: 640, height: 88 } });
+await browser.close();
+console.log("shot ok");

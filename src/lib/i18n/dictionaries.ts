@@ -54,9 +54,9 @@ export const en = {
     kicker: "サウナ",
     heading1: "Heat. Cold.",
     heading2: "Open sky.",
-    body: "The barrel sauna is the soul of Nagomi. Fire it up, step out into a galvanized cold-plunge tub, then lie back on the terrace as the steam lifts off you and the rice fields breathe. Totonou — the Japanese art of coming back into balance — with no one else around for miles.",
+    body: "After warming up in the high-temperature sauna filled with the aroma of Japanese cypress, step straight into a cold bath fed by natural well water. The refreshing breeze blowing across the surrounding countryside guides you to a state of blissful relaxation.",
     point1: "Cedar barrel sauna for your group alone",
-    point2: "Cold-plunge tubs & outdoor showers",
+    point2: "Cold plunge pool with natural well water & an outdoor shower.",
     point3: "Terrace loungers facing the paddies",
   },
 
@@ -73,26 +73,26 @@ export const en = {
 
   access: {
     kicker: "Access",
-    heading: "Far enough to matter",
-    body: "Nagomi sits among working rice fields in Miyazaki Prefecture, in the border country of southern Kyushu. The nearest airport is Kagoshima (KOJ) — closer than Miyazaki's — and the drive in, past tea fields and volcano views, is part of the stay.",
+    heading: "A little bit away in the countryside",
+    body: "Nagomi Inn is located in the southwestern part of Miyazaki Prefecture, situated in a rural area near the borders of Kagoshima and Kumamoto prefectures. It is approximately a 40-minute drive from the nearest airport Kagoshima Airport (KOJ); the drive, offering views of tea plantations and the Kirishima mountain range, makes the journey feel quick and pleasant.",
     rows: [
-      ["Nearest airport", "Kagoshima Airport (KOJ) — car recommended"],
-      ["Also reachable from", "Miyazaki Airport (KMI)"],
+      ["Nearest airport", "Kagoshima Airport (KOJ) — transportation by car is recommended"],
+      ["Also reachable from", "Miyazaki Airport (KMI) and other prefectures (by car); please contact us for details."],
       ["Check-in / out", "15:00 — 10:00"],
-      ["Getting around", "A rental car is strongly recommended"],
-      ["Exact address", "Shared after your reservation is confirmed"],
+      ["Getting around", "As public transportation options near the accommodation are limited, we getting arround by car, such as a rental car."],
+      ["Exact address", "Shared after your reservation is confirmed."],
     ] as [string, string][],
   },
 
   cta: {
-    heading1: "The valley is quiet.",
-    heading2: "The sauna is warm.",
-    body: "Gather your people — the whole place is yours.",
+    heading1: "Countryside and Starry Sky.",
+    heading2: "A hot Sauna and BBQ. It's okay for Adults to have a bit of Fun somtimes too",
+    body: "Enjoy a soothing moment with your loved ones in a space designed with meticulous care.",
     button: "Check dates & reserve",
   },
 
   footer: {
-    blurb: "A private countryside inn for up to 18 guests in Miyazaki, Kyushu. Two houses, a barrel sauna, and the rice fields.",
+    blurb: "An entire traditional house available for private rental—limited to just one group per day — nestled in the rural landscape of Miyazaki. It can accommodate up to 18 guests.",
     contact: "Contact",
     explore: "Explore",
     legal: "© {year} Nagomi Inn Miyazaki. All rights reserved.",
@@ -259,9 +259,9 @@ export const ja: typeof en = {
     kicker: "サウナ",
     heading1: "熱と、水と、",
     heading2: "ひらけた空。",
-    body: "バレルサウナは「和」の魂です。薪の熱で温まり、外の水風呂へ。そのままテラスに寝転べば、湯気の向こうに田んぼが揺れています。まわりには誰もいない。ただ、ととのうだけ。",
+    body: "国産ヒノキの香りが広がる高温のサウナで温まった後は、そのまま天然井戸水の水風呂へ。田園を吹き抜けるさわやかな風が特別な「ととのい」へと導いてくれます。",
     point1: "貸切のバレルサウナ",
-    point2: "水風呂と外シャワー",
+    point2: "天然井戸水の水風呂と屋外シャワー",
     point3: "田園を望む外気浴テラス",
   },
 
@@ -278,26 +278,26 @@ export const ja: typeof en = {
 
   access: {
     kicker: "アクセス",
-    heading: "少し遠い、が良い",
-    body: "「和」は宮崎県の南、鹿児島との県境に近い田園地帯にあります。最寄りは宮崎空港ではなく鹿児島空港（KOJ）。茶畑と霧島の山なみを眺めながらのドライブも、旅のうちです。",
+    heading: "少し遠い。がいい",
+    body: "「和」は宮崎県の南西部に位置しており、鹿児島県と熊本県との県境に近い田園地帯にあります。最寄りの鹿児島空港（KOJ）からは車で約４０分。茶畑と霧島の山なみを眺めながらのドライブで、あっという間に到着です。",
     rows: [
-      ["最寄り空港", "鹿児島空港（KOJ）— お車でのアクセスがおすすめ"],
-      ["その他", "宮崎空港（KMI）からもアクセス可能"],
+      ["最寄り空港", "鹿児島空港（KOJ）— 空港から宿へはお車でのアクセスがおすすめです。"],
+      ["その他", "宮崎空港（KMI）や他府県からのお車でのアクセスも可能ですので、詳しくはお問合せください。"],
       ["チェックイン / アウト", "15:00 — 10:00"],
-      ["移動手段", "レンタカーのご利用を強くおすすめします"],
-      ["住所", "ご予約確定後にご案内いたします"],
+      ["移動手段", "宿周辺の公共交通機関の運行本数が少ないため、レンタカーなどお車でのアクセスをおすすめしております。"],
+      ["住所", "ご予約確定後にご案内いたします。"],
     ] as [string, string][],
   },
 
   cta: {
-    heading1: "谷は静かに。",
-    heading2: "サウナは温かく。",
-    body: "大切な人たちと、まるごと貸切で。",
+    heading1: "田園と星空。",
+    heading2: "BBQとサウナ。大人だって全力で遊んでもいいじゃん。",
+    body: "こだわりの空間で大切な人たちと、心癒されるひとときを。",
     button: "空室を確認して予約",
   },
 
   footer: {
-    blurb: "宮崎の田園にたたずむ、最大18名さままでの一棟貸しの宿。二つの棟とバレルサウナ。",
+    blurb: "宮崎の田園地帯に佇む１日１組限定の古民家一棟貸しの宿。最大１８名様までご宿泊いただけます。",
     contact: "お問い合わせ",
     explore: "メニュー",
     legal: "© {year} 田舎民泊 和 Nagomi Inn Miyazaki",
