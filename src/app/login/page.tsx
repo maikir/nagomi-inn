@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
-import { site } from "@/config/site";
+import { LogoMark } from "@/components/LogoMark";
 
 export default function LoginPage() {
   return (
@@ -80,7 +80,9 @@ function LoginInner() {
 
   return (
     <div className="mx-auto flex min-h-[100svh] max-w-md flex-col justify-center px-5 pb-24 pt-28 md:px-0">
-      <p className="text-center font-display text-5xl text-copper-bright">{site.kanji}</p>
+      <div className="flex justify-center">
+        <LogoMark size="lg" />
+      </div>
       <h1 className="mt-6 text-center font-display text-3xl md:text-4xl">{t.auth.title}</h1>
       <p className="mt-3 text-center text-sm leading-relaxed text-paper-dim">{t.auth.subtitle}</p>
 

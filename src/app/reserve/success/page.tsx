@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
-import { site, formatYen } from "@/config/site";
+import { formatYen } from "@/config/site";
+import { LogoMark } from "@/components/LogoMark";
 import { getReservationStore, formatDate, type Reservation } from "@/lib/reservations";
 
 /**
@@ -64,7 +65,9 @@ function SuccessInner() {
 
   return (
     <div className="mx-auto max-w-2xl px-5 pb-28 pt-36 text-center md:px-0">
-      <p className="font-display text-6xl text-copper-bright">{site.kanji}</p>
+      <div className="flex justify-center">
+        <LogoMark size="lg" />
+      </div>
 
       {confirmed ? (
         <>

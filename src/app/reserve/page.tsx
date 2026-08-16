@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { site, formatYen } from "@/config/site";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
+import { LogoMark } from "@/components/LogoMark";
 import {
   getReservationStore,
   nightsBetween,
@@ -385,7 +386,9 @@ export default function ReservePage() {
       {/* ── STEP: DONE ───────────────────────────────────────────────────── */}
       {step === "done" && confirmed && (
         <div className="mx-auto max-w-2xl pt-10 text-center">
-          <p className="font-display text-6xl text-copper-bright">{site.kanji}</p>
+          <div className="flex justify-center">
+            <LogoMark size="lg" />
+          </div>
           <h1 className="mt-8 font-display text-4xl md:text-5xl">{t.reserve.confirmedTitle}</h1>
           <p className="mt-4 text-xs tracking-[0.25em] text-paper-faint">
             {t.reserve.confirmationId.toUpperCase()}: <span className="text-copper-bright">{confirmed.id}</span>

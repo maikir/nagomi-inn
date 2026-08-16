@@ -7,6 +7,7 @@ import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountMenu } from "@/components/AccountMenu";
+import { LogoMark } from "@/components/LogoMark";
 
 export function Nav() {
   const { lang, setLang, t } = useLang();
@@ -44,9 +45,7 @@ export function Nav() {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:h-20 md:px-8">
         {/* Brand */}
         <Link href="/" className="group flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center border border-paper/40 text-lg font-display transition-colors group-hover:border-copper group-hover:text-copper-bright">
-            {site.kanji}
-          </span>
+          <LogoMark size="sm" />
           <span className="flex flex-col leading-none">
             <span className="font-display text-lg tracking-[0.3em]">{site.name}</span>
             <span className="mt-1 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</span>

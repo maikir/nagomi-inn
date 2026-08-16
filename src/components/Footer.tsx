@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
+import { LogoMark } from "@/components/LogoMark";
 
 export function Footer() {
   const { t, lang } = useLang();
@@ -13,9 +14,7 @@ export function Footer() {
         <div className="grid gap-12 md:grid-cols-[2fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-3">
-              <span className="grid h-10 w-10 place-items-center border border-paper/40 font-display text-xl">
-                {site.kanji}
-              </span>
+              <LogoMark size="md" />
               <div className="leading-none">
                 <p className="font-display text-xl tracking-[0.3em]">{site.name}</p>
                 <p className="mt-1.5 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</p>
