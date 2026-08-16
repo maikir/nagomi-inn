@@ -9,7 +9,7 @@ export function FinalCta() {
   const { t } = useLang();
 
   return (
-    <section className="relative overflow-hidden">
+    <section className="over-photo relative overflow-hidden">
       <div className="relative flex min-h-[70svh] items-center justify-center">
         <Image
           src="/images/kitchen-island-view.jpg"
@@ -18,17 +18,18 @@ export function FinalCta() {
           sizes="100vw"
           className="object-cover"
         />
-        <div className="cta-scrim absolute inset-0" />
-        <Reveal className="relative z-10 mx-auto max-w-3xl px-5 text-center">
-          <h2 className="font-display text-4xl leading-tight md:text-6xl">
+        {/* Cinematic dark grade (graded gradient + vignette), not a flat scrim. */}
+        <div className="cta-grad absolute inset-0" />
+        <Reveal className="relative z-10 mx-auto max-w-3xl px-5 text-center [text-shadow:0_2px_14px_rgba(0,0,0,0.4)]">
+          <h2 className="font-display text-4xl leading-tight text-paper-bright md:text-6xl">
             {t.cta.heading1}
             <br />
             {t.cta.heading2}
           </h2>
-          <p className="mt-6 text-paper-dim md:text-lg">{t.cta.body}</p>
+          <p className="mt-6 text-paper-bright/90 md:text-lg">{t.cta.body}</p>
           <Link
             href="/reserve"
-            className="mt-12 inline-block border border-copper bg-copper/10 px-10 py-5 text-xs tracking-[0.25em] text-copper-bright backdrop-blur-sm transition-all hover:bg-copper hover:text-sumi-950 md:text-sm"
+            className="mt-12 inline-block border border-copper bg-copper/10 px-10 py-5 text-xs tracking-[0.25em] text-copper-bright backdrop-blur-sm [text-shadow:none] transition-all hover:bg-copper hover:text-sumi-950 md:text-sm"
           >
             {t.cta.button.toUpperCase()}
           </Link>

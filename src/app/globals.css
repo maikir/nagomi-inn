@@ -127,7 +127,10 @@ body {
    light (dark-mode palette re-declared locally), with only a soft dark scrim
    at the lower-left for legibility. The section then cuts cleanly into the
    white page below — photo band on paper, the bright-ryokan-site look.       */
-[data-theme="light"] .hero-section {
+/* Sections whose text sits directly on a photo keep the dark-theme (light)
+   palette even under the light theme, so copy stays legible over imagery. */
+[data-theme="light"] .hero-section,
+[data-theme="light"] .over-photo {
   --paper: 236 229 216;
   --paper-bright: 246 241 231;
   --paper-dim: 209 202 188;
@@ -149,6 +152,15 @@ body {
 }
 [data-theme="light"] .hero-section .hero-grad-x {
   background: linear-gradient(to right, rgb(12 14 15 / 0.4), transparent 60%);
+}
+
+/* Final CTA: cinematic dark grade over the photo (fixed dark tones, same in
+   both themes) — a vertical grade plus a soft centre vignette, like the hero
+   videos, rather than a flat white/dark wash. */
+.cta-grad {
+  background:
+    radial-gradient(ellipse at center, transparent 34%, rgb(12 14 15 / 0.45) 100%),
+    linear-gradient(to bottom, rgb(12 14 15 / 0.5) 0%, rgb(12 14 15 / 0.34) 46%, rgb(12 14 15 / 0.62) 100%);
 }
 
 /* In the bright theme the nav is always solid washi (ink links need a ground
