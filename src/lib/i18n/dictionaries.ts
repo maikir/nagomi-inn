@@ -95,6 +95,7 @@ export const en = {
     blurb: "An entire traditional house available for private rental—limited to just one group per day — nestled in the rural landscape of Miyazaki. It can accommodate up to 18 guests.",
     contact: "Contact",
     explore: "Explore",
+    instagramQr: "Follow us on Instagram!",
     legal: "© {year} Nagomi Inn Miyazaki. All rights reserved.",
   },
 
@@ -300,6 +301,7 @@ export const ja: typeof en = {
     blurb: "宮崎の田園地帯に佇む１日１組限定の古民家一棟貸しの宿。最大１８名様までご宿泊いただけます。",
     contact: "お問い合わせ",
     explore: "メニュー",
+    instagramQr: "Instagramでフォローしてね！",
     legal: "© {year} 田舎民泊 和 Nagomi Inn Miyazaki",
   },
 

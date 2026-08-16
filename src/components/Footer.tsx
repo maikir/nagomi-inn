@@ -6,7 +6,7 @@ import { site } from "@/config/site";
 import { LogoMark } from "@/components/LogoMark";
 
 export function Footer() {
-  const { t, lang } = useLang();
+  const { t } = useLang();
 
   return (
     <footer className="border-t border-paper/10 bg-sumi-950">
@@ -60,6 +60,29 @@ export function Footer() {
                 </a>
               </li>
             </ul>
+
+            {/* Instagram QR — desktop only (on a phone the handle link above
+                is the natural path; you can't scan your own screen). The white
+                tile keeps it scannable on the dark theme; the brand-gradient
+                ring + centre glyph make it read as Instagram at a glance.
+                Regenerate after changing the handle: `bun run qr`. */}
+            <a
+              href={`https://instagram.com/${site.contact.instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group mt-7 hidden w-fit md:block"
+            >
+              <span className="block w-fit rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
+                <span className="block rounded-[13px] bg-white p-2.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/instagram-qr.svg" alt={t.footer.instagramQr} className="h-24 w-24" />
+                </span>
+              </span>
+              <span className="mt-3 flex items-center gap-1.5 text-[10px] tracking-[0.15em] text-paper-faint transition-colors group-hover:text-paper-dim">
+                <InstagramGlyph />
+                {t.footer.instagramQr}
+              </span>
+            </a>
           </div>
         </div>
 
@@ -68,5 +91,16 @@ export function Footer() {
         </div>
       </div>
     </footer>
+  );
+}
+
+/** Small monochrome Instagram camera glyph (inherits text color). */
+function InstagramGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+      <rect x="2" y="2" width="20" height="20" rx="5.5" />
+      <circle cx="12" cy="12" r="4.2" />
+      <circle cx="17.6" cy="6.4" r="1.2" fill="currentColor" stroke="none" />
+    </svg>
   );
 }

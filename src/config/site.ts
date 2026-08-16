@@ -19,7 +19,7 @@ export const site = {
   contact: {
     email: "info@nagomi-inn.jp", // PLACEHOLDER
     phone: "+81 70-6461-0434",
-    instagram: "nagomi_inn_miyazaki", // PLACEHOLDER (handle only, no @)
+    instagram: "nagomi_inn_miyazaki",
   },
 
   location: {
