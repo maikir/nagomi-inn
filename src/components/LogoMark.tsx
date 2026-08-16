@@ -7,8 +7,9 @@ import { site } from "@/config/site";
  * on the dark "sumi" theme — on the light theme the tile blends into washi.
  */
 export function LogoMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  const box = size === "sm" ? "h-9 w-9 p-1" : size === "md" ? "h-10 w-10 p-1" : "h-24 w-24 p-2.5";
-  const px = size === "lg" ? 96 : 40;
+  const box =
+    size === "sm" ? "h-[54px] w-[54px] p-1.5" : size === "md" ? "h-[60px] w-[60px] p-1.5" : "h-36 w-36 p-3.5";
+  const px = size === "lg" ? 144 : 60;
   return (
     <span className={`grid shrink-0 place-items-center rounded-full bg-[#f6f1e7] ${box}`}>
       <Image
