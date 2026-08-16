@@ -44,11 +44,14 @@ export function Nav() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:h-20 md:px-8">
         {/* Brand */}
-        <Link href="/" className="group flex items-center gap-3">
+        <Link href="/" className="group flex items-center gap-2.5">
           <LogoMark size="sm" />
-          <span className="flex flex-col leading-none">
-            <span className="font-display text-lg tracking-[0.3em]">{site.name}</span>
-            <span className="mt-1 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</span>
+          {/* Text block centered on the mark; -mt cancels the display font's
+              ascender dead-space so the visual gap above NAGOMI matches the
+              gap below the tagline. */}
+          <span className="flex flex-col justify-center gap-1.5">
+            <span className="-mt-0.5 font-display text-lg leading-none tracking-[0.3em]">{site.name}</span>
+            <span className="text-[10px] leading-none tracking-[0.25em] text-paper-dim">{site.taglineLockup}</span>
           </span>
         </Link>
 

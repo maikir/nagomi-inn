@@ -13,11 +13,12 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
         <div className="grid gap-12 md:grid-cols-[2fr_1fr_1fr]">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <LogoMark size="md" />
-              <div className="leading-none">
-                <p className="font-display text-xl tracking-[0.3em]">{site.name}</p>
-                <p className="mt-1.5 text-[10px] tracking-[0.25em] text-paper-dim">{site.taglineLockup}</p>
+              {/* Same lockup treatment as the nav: centered, ascender-compensated. */}
+              <div className="flex flex-col justify-center gap-1.5">
+                <p className="-mt-0.5 font-display text-xl leading-none tracking-[0.3em]">{site.name}</p>
+                <p className="text-[10px] leading-none tracking-[0.25em] text-paper-dim">{site.taglineLockup}</p>
               </div>
             </div>
             <p className="mt-6 max-w-sm text-sm leading-relaxed text-paper-dim">{t.footer.blurb}</p>
