@@ -25,6 +25,7 @@ function LoginInner() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -58,6 +59,11 @@ function LoginInner() {
         if (error) throw error;
         router.replace(next);
       } else {
+        if (password !== confirm) {
+          setError(t.auth.errorPasswordMismatch);
+          setBusy(false);
+          return;
+        }
         const { error, data } = await supabase.auth.signUp({
           email,
           password,
@@ -141,6 +147,20 @@ function LoginInner() {
                 className="mt-2.5 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
               />
             </label>
+            {mode === "signup" && (
+              <label className="block text-xs tracking-[0.2em] text-paper-faint">
+                {t.auth.confirmPassword.toUpperCase()}
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="mt-2.5 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
+                />
+              </label>
+            )}
 
             {error && (
               <p className="border border-copper/60 bg-copper/10 px-4 py-3 text-sm text-copper-bright" role="alert">
@@ -169,6 +189,7 @@ function LoginInner() {
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError(null);
                 setNotice(null);
+                setConfirm("");
               }}
               className="text-copper-bright underline-offset-4 hover:underline"
             >
