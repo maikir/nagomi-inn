@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLang, fill } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -25,7 +25,8 @@ type AdminReservation = {
   paidAt?: string;
 };
 type ExternalBlock = { source: string; checkIn: string; checkOut: string; summary?: string };
-type Payload = { reservations: AdminReservation[]; externalBlocks: ExternalBlock[] };
+type Payload = { reservations: AdminReservation[]; externalBlocks: ExternalBlock[]; icalConfigured?: boolean };
+type SyncResult = { source: string; events: number; error?: string };
 
 type Screen = "loading" | "forbidden" | "ready";
 
@@ -38,6 +39,62 @@ export default function AdminPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [view, setView] = useState<"list" | "calendar">("list");
   const [status, setStatus] = useState<"all" | "confirmed" | "pending" | "cancelled">("all");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+
+  const authedFetch = useCallback(async (path: string, init?: RequestInit) => {
+    const session = (await getSupabase()?.auth.getSession())?.data.session;
+    if (!session) return null;
+    return fetch(path, {
+      ...init,
+      headers: { ...init?.headers, Authorization: `Bearer ${session.access_token}` },
+    });
+  }, []);
+
+  const loadData = useCallback(async () => {
+    const res = await authedFetch("/api/admin/reservations");
+    if (!res) {
+      router.replace("/login?next=/admin");
+      return false;
+    }
+    if (!res.ok) {
+      setScreen("forbidden");
+      return false;
+    }
+    setData((await res.json()) as Payload);
+    setScreen("ready");
+    return true;
+  }, [authedFetch, router]);
+
+  async function runSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await authedFetch("/api/admin/sync", { method: "POST" });
+      const json = (await res?.json().catch(() => ({}))) as {
+        configured?: boolean;
+        synced?: SyncResult[];
+      };
+      if (!res || !res.ok || json.configured === false) {
+        setSyncMsg(
+          json.configured === false
+            ? { tone: "error", text: t.admin.syncNotConnected }
+            : { tone: "error", text: t.admin.syncError },
+        );
+        return;
+      }
+      const total = (json.synced ?? []).reduce((n, r) => n + (r.error ? 0 : r.events), 0);
+      const summary = (json.synced ?? [])
+        .map((r) => `${r.source}: ${r.error ? "—" : r.events}`)
+        .join(" · ");
+      setSyncMsg({ tone: "ok", text: total > 0 ? fill(t.admin.syncDone, { summary }) : t.admin.syncNone });
+      await loadData(); // reflect freshly-synced blocks on the calendar
+    } catch {
+      setSyncMsg({ tone: "error", text: t.admin.syncError });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => {
     if (loading) return;
@@ -51,26 +108,12 @@ export default function AdminPage() {
     }
     let cancelled = false;
     (async () => {
-      const session = (await getSupabase()?.auth.getSession())?.data.session;
-      if (!session) {
-        router.replace("/login?next=/admin");
-        return;
-      }
-      const res = await fetch("/api/admin/reservations", {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (cancelled) return;
-      if (!res.ok) {
-        setScreen("forbidden");
-        return;
-      }
-      setData((await res.json()) as Payload);
-      setScreen("ready");
+      if (!cancelled) await loadData();
     })();
     return () => {
       cancelled = true;
     };
-  }, [loading, enabled, user, router]);
+  }, [loading, enabled, user, router, loadData]);
 
   const today = todayISO();
 
@@ -170,8 +213,34 @@ export default function AdminPage() {
       </div>
 
       {view === "calendar" ? (
-        <div className="mt-10">
-          <OccupancyCalendar reservations={reservations} externalBlocks={data?.externalBlocks ?? []} />
+        <div className="mt-8">
+          {/* Refresh Airbnb / Booking.com feeds on demand (admin-gated route,
+              not the cron secret). Only shown when feeds are connected. */}
+          {data?.icalConfigured && (
+            <div className="flex flex-wrap items-center gap-4">
+              <button
+                onClick={runSync}
+                disabled={syncing}
+                className="flex items-center gap-2.5 border border-paper/30 px-5 py-2.5 text-xs tracking-[0.2em] text-paper-dim transition-all hover:border-copper hover:text-copper-bright disabled:pointer-events-none disabled:opacity-60"
+              >
+                {syncing && (
+                  <span
+                    className="h-3.5 w-3.5 animate-spin rounded-full border border-current border-t-transparent"
+                    aria-hidden="true"
+                  />
+                )}
+                {(syncing ? t.admin.syncing : t.admin.syncNow).toUpperCase()}
+              </button>
+              {syncMsg && (
+                <span className={`text-sm ${syncMsg.tone === "ok" ? "text-moss" : "text-copper-bright"}`}>
+                  {syncMsg.text}
+                </span>
+              )}
+            </div>
+          )}
+          <div className="mt-8">
+            <OccupancyCalendar reservations={reservations} externalBlocks={data?.externalBlocks ?? []} />
+          </div>
         </div>
       ) : (
         <div className="mt-8">

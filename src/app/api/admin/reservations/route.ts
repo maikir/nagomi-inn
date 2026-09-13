@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin, getSupabaseAsUser } from "@/lib/server/supabaseAdmin";
-import { isAdminEmail } from "@/lib/server/admin";
+import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { authorizeAdmin } from "@/lib/server/admin";
+import { parseImportUrls } from "@/lib/server/icalSync";
 
 /**
  * GET /api/admin/reservations
@@ -30,12 +31,8 @@ export async function GET(req: Request) {
   const admin = getSupabaseAdmin();
   if (!admin) return NextResponse.json({ error: "NOT_CONFIGURED" }, { status: 501 });
 
-  const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-  if (!token) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  const asUser = getSupabaseAsUser(token);
-  const user = asUser ? (await asUser.auth.getUser(token)).data.user : null;
-  if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  if (!isAdminEmail(user.email)) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  const auth = await authorizeAdmin(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.status === 403 ? "FORBIDDEN" : "AUTH_REQUIRED" }, { status: auth.status });
 
   const { data: rows, error } = await admin
     .from("reservations")
@@ -69,5 +66,7 @@ export async function GET(req: Request) {
       checkOut: b.check_out as string,
       summary: (b.summary as string | null) ?? undefined,
     })),
+    // Whether any OTA calendars are connected — drives the "refresh" button.
+    icalConfigured: parseImportUrls().length > 0,
   });
 }
