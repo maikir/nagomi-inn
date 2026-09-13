@@ -41,6 +41,8 @@ export default function AdminPage() {
   const [status, setStatus] = useState<"all" | "confirmed" | "pending" | "cancelled">("all");
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  // Which phase the initial load is in, for the loading screen's text.
+  const [loadingStep, setLoadingStep] = useState<"auth" | "data">("auth");
 
   const authedFetch = useCallback(async (path: string, init?: RequestInit) => {
     const session = (await getSupabase()?.auth.getSession())?.data.session;
@@ -52,6 +54,7 @@ export default function AdminPage() {
   }, []);
 
   const loadData = useCallback(async () => {
+    setLoadingStep("data");
     const res = await authedFetch("/api/admin/reservations");
     if (!res) {
       router.replace("/login?next=/admin");
@@ -134,9 +137,23 @@ export default function AdminPage() {
   }, [data, today]);
 
   if (screen === "loading") {
+    const step = loading ? "auth" : loadingStep;
     return (
-      <div className="mx-auto max-w-5xl px-5 pt-32 md:px-8">
-        <div className="h-40 animate-pulse border border-paper/10 bg-sumi-900" />
+      <div className="mx-auto flex min-h-[70svh] max-w-5xl flex-col items-center justify-center gap-6 px-5 md:px-8">
+        <span
+          className="h-9 w-9 animate-spin rounded-full border-2 border-paper/25 border-t-copper"
+          aria-hidden="true"
+        />
+        <div className="text-center" role="status" aria-live="polite">
+          <p className="font-display text-lg tracking-[0.15em] text-paper">
+            {step === "auth" ? t.admin.loadingAuth : t.admin.loadingData}
+          </p>
+          {/* Two-dot progress hint of the sequence */}
+          <div className="mt-4 flex items-center justify-center gap-2">
+            <span className={`h-1.5 w-1.5 rounded-full ${step === "auth" ? "bg-copper" : "bg-moss"}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${step === "data" ? "bg-copper" : "bg-paper/25"}`} />
+          </div>
+        </div>
       </div>
     );
   }
