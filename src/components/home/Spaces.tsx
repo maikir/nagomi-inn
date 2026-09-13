@@ -10,18 +10,21 @@ export function Spaces() {
   const spaces = [
     {
       name: t.spaces.omoyaName,
+      romaji: t.spaces.omoyaRomaji,
       desc: t.spaces.omoyaDesc,
       img: "/images/living-lantern-tatami.jpg",
       alt: "The main house living space with paper lantern, kitchen and tatami room",
     },
     {
       name: t.spaces.hanareName,
+      romaji: t.spaces.hanareRomaji,
       desc: t.spaces.hanareDesc,
       img: "/images/lounge-projector.jpg",
       alt: "The annex lounge with a wall-sized projector screen and low sofas",
     },
     {
       name: t.spaces.sotoName,
+      romaji: t.spaces.sotoRomaji,
       desc: t.spaces.sotoDesc,
       img: "/images/terrace-loungers.jpg",
       alt: "The sauna terrace with loungers facing the rice fields and mountains",
@@ -50,7 +53,12 @@ export function Spaces() {
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-sumi-950/70 via-transparent to-transparent" />
               </div>
-              <h3 className="mt-6 font-display text-2xl">{s.name}</h3>
+              <h3 className="mt-6 font-display text-2xl">
+                {s.name}
+                {s.romaji && (
+                  <span className="ml-2 font-body text-base italic tracking-wide text-paper-faint">{s.romaji}</span>
+                )}
+              </h3>
               <p className="mt-3 text-sm leading-loose text-paper-dim">{s.desc}</p>
             </Reveal>
           ))}
