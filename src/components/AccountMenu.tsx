@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
  */
 export function AccountMenu() {
   const { t } = useLang();
-  const { enabled, user, signOut } = useAuth();
+  const { enabled, user, loading, signOut } = useAuth();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -37,6 +37,12 @@ export function AccountMenu() {
         {t.nav.myReservations}
       </Link>
     );
+  }
+
+  // While the session is still restoring, show nothing rather than flashing the
+  // login button at an already-signed-in visitor (e.g. returning from Stripe).
+  if (loading) {
+    return <span className="h-9 w-9" aria-hidden="true" />;
   }
 
   if (!user) {
