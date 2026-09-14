@@ -48,8 +48,8 @@ export const en = {
     hanareName: "The Annex — 離れ",
     hanareRomaji: "hanare",
     hanareDesc: "Located on the west side of the main building, the facility features a theater room fully equipped with a projector, as well as a second-floor multi-purpose hall that offers a commanding view of the stunning rural landscape below.",
-    sotoName: "The Barrel Sauna — 桶",
-    sotoRomaji: "oke",
+    sotoName: "The Barrel Sauna — 樽",
+    sotoRomaji: "taru",
     sotoDesc: "The barrel sauna and cold plunge, located outdoors on the northwest side of the property, offer a special, extraordinary experience where you can achieve a state of deep relaxation ('totonou') — while gazing out at the magnificent scenery. The cold plunge uses well water; enjoy the sensation of smooth water splashing over you and the feeling of the breeze sweeping across the countryside as you cool off in the open air. On clear nights, we also highly recommend a nighttime sauna session under a sky full of stars.",
   },
 
