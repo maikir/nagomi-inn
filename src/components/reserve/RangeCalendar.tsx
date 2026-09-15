@@ -124,7 +124,11 @@ export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const iso = toISODate(new Date(month.getFullYear(), month.getMonth(), i + 1));
                   const disabled = isDisabled(iso);
-                  const isBooked = booked.has(iso) && iso >= today;
+                  // Cross out a booked night only when it's genuinely unpickable.
+                  // A booked night that's a valid *check-out* for the current
+                  // selection (e.g. the 25th after picking the free 24th, since
+                  // check-out is exclusive) stays uncrossed and clickable.
+                  const bookedBlocked = booked.has(iso) && iso >= today && disabled;
                   const isStart = iso === checkIn;
                   const isEnd = iso === checkOut;
                   const selected = isStart || isEnd;
@@ -140,12 +144,12 @@ export function RangeCalendar({ checkIn, checkOut, booked, onChange }: Props) {
                       onMouseLeave={() => setHovered(null)}
                       className={[
                         "relative mx-auto grid h-10 w-10 place-items-center text-sm transition-colors",
-                        // Booked night: filled/blacked-out cell, struck through
-                        isBooked && !selected
+                        // Booked & unpickable: filled/blacked-out cell, struck through
+                        bookedBlocked && !selected
                           ? "cursor-not-allowed bg-paper/15 text-paper-faint line-through decoration-paper-faint"
                           : "",
                         // Past date: simply faded
-                        disabled && !isBooked && !selected ? "cursor-not-allowed text-paper-faint/40" : "",
+                        disabled && !bookedBlocked && !selected ? "cursor-not-allowed text-paper-faint/40" : "",
                         selected ? "bg-copper text-sumi-950 font-medium" : "",
                         !selected && within ? "bg-copper/20 text-paper" : "",
                         !selected && !within && !disabled ? "text-paper-dim hover:bg-paper/10 hover:text-paper" : "",
