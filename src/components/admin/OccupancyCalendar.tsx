@@ -15,9 +15,12 @@ const WEEKDAYS_JA = ["日", "月", "火", "水", "木", "金", "土"];
 export function OccupancyCalendar({
   reservations,
   externalBlocks,
+  conflictNights,
 }: {
   reservations: Reservation[];
   externalBlocks: ExternalBlock[];
+  /** Nights held by 2+ bookings — flagged with a red marker. */
+  conflictNights?: Set<string>;
 }) {
   const { lang, t } = useLang();
   const [cursor, setCursor] = useState(() => {
@@ -96,13 +99,24 @@ export function OccupancyCalendar({
           const iso = toISODate(new Date(cursor.getFullYear(), cursor.getMonth(), i + 1));
           const o = occ.get(iso);
           const isToday = iso === today;
+          const conflict = conflictNights?.has(iso) ?? false;
           return (
             <div
               key={iso}
               title={o ? o.label : undefined}
-              className={`min-h-[62px] border p-1.5 text-left ${cellClass(o)} ${isToday ? "ring-1 ring-copper" : ""}`}
+              className={`relative min-h-[62px] border p-1.5 text-left ${
+                conflict ? "border-red-500/70 bg-red-500/15" : cellClass(o)
+              } ${isToday ? "ring-1 ring-copper" : ""}`}
             >
               <span className={`text-xs ${o ? "text-paper" : "text-paper-faint"}`}>{i + 1}</span>
+              {conflict && (
+                <span
+                  className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-red-500 text-[10px] font-bold leading-none text-white"
+                  aria-label="double booking"
+                >
+                  !
+                </span>
+              )}
               {o && (
                 <span className="mt-1 block truncate text-[10px] leading-tight text-paper-dim">{o.label}</span>
               )}
@@ -117,6 +131,7 @@ export function OccupancyCalendar({
         <Key className="border-copper/40 bg-copper/20" label={t.admin.legendPending} />
         <Key className="border-paper/20 bg-paper/10" label={t.admin.legendExternal} />
         <Key className="border-paper/10" label={t.admin.legendFree} />
+        <Key className="border-red-500/70 bg-red-500/15" label={t.admin.legendConflict} />
       </div>
     </div>
   );

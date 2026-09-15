@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { formatYen } from "@/config/site";
 import { formatDate, nightsBetween, nightsOf, todayISO } from "@/lib/reservations";
+import { findConflicts } from "@/lib/reservations/conflicts";
 import { OccupancyCalendar } from "@/components/admin/OccupancyCalendar";
 
 type AdminReservation = {
@@ -133,6 +134,11 @@ export default function AdminPage() {
     return { upcoming: upcoming.length, nightsThisMonth, next };
   }, [data, today]);
 
+  const conflicts = useMemo(
+    () => findConflicts(data?.reservations ?? [], data?.externalBlocks ?? []),
+    [data],
+  );
+
   if (screen === "loading") {
     const step = loading ? "auth" : loadingStep;
     return (
@@ -200,8 +206,25 @@ export default function AdminPage() {
         </button>
       </div>
 
+      {/* Double-booking alert — the same dates held by 2+ bookings. */}
+      {conflicts.count > 0 && (
+        <div
+          role="alert"
+          className="mt-8 flex items-start gap-3 border border-red-500/50 bg-red-500/10 px-5 py-4 text-sm text-red-300"
+        >
+          <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-red-500 text-xs font-bold text-white">
+            !
+          </span>
+          <span>
+            {fill(conflicts.count === 1 ? t.admin.conflictAlert_one : t.admin.conflictAlert_other, {
+              n: conflicts.count,
+            })}
+          </span>
+        </div>
+      )}
+
       {/* Stat tiles */}
-      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label={t.admin.statUpcoming} value={String(stats.upcoming)} />
         <Stat label={t.admin.statNights} value={String(stats.nightsThisMonth)} />
         <Stat
@@ -253,7 +276,11 @@ export default function AdminPage() {
             </div>
           )}
           <div className="mt-8">
-            <OccupancyCalendar reservations={reservations} externalBlocks={data?.externalBlocks ?? []} />
+            <OccupancyCalendar
+              reservations={reservations}
+              externalBlocks={data?.externalBlocks ?? []}
+              conflictNights={conflicts.nights}
+            />
           </div>
         </div>
       ) : (
@@ -275,8 +302,8 @@ export default function AdminPage() {
             ))}
           </div>
 
-          <Section title={t.admin.upcoming} rows={upcoming} today={today} />
-          <Section title={t.admin.past} rows={past} today={today} muted />
+          <Section title={t.admin.upcoming} rows={upcoming} today={today} conflictIds={conflicts.reservationIds} />
+          <Section title={t.admin.past} rows={past} today={today} conflictIds={conflicts.reservationIds} muted />
         </div>
       )}
     </div>
@@ -297,11 +324,13 @@ function Section({
   title,
   rows,
   muted,
+  conflictIds,
 }: {
   title: string;
   rows: AdminReservation[];
   today: string;
   muted?: boolean;
+  conflictIds: Set<string>;
 }) {
   const { t, lang } = useLang();
   return (
@@ -313,6 +342,7 @@ function Section({
         <ul className={`mt-4 space-y-3 ${muted ? "opacity-70" : ""}`}>
           {rows.map((r) => {
             const nights = nightsBetween(r.checkIn, r.checkOut);
+            const conflicted = conflictIds.has(r.id);
             const pill =
               r.status === "confirmed"
                 ? "border-moss/50 bg-moss/15 text-moss"
@@ -320,13 +350,24 @@ function Section({
                   ? "border-copper/50 bg-copper/15 text-copper-bright"
                   : "border-paper/20 bg-paper/5 text-paper-faint line-through";
             return (
-              <li key={r.id} className="border border-paper/15 bg-sumi-900 p-5 md:p-6">
+              <li
+                key={r.id}
+                className={`border bg-sumi-900 p-5 md:p-6 ${conflicted ? "border-red-500/60" : "border-paper/15"}`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-3">
                       <span className={`border px-2.5 py-1 text-[10px] tracking-[0.15em] ${pill}`}>
                         {t.admin.status[r.status]}
                       </span>
+                      {conflicted && (
+                        <span className="flex items-center gap-1.5 border border-red-500/60 bg-red-500/15 px-2.5 py-1 text-[10px] font-semibold tracking-[0.1em] text-red-300">
+                          <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                            !
+                          </span>
+                          {t.admin.doubleBooking}
+                        </span>
+                      )}
                       <span className="text-xs tracking-[0.2em] text-paper-faint">{r.id}</span>
                     </div>
                     <p className="mt-3 font-display text-lg md:text-xl">
