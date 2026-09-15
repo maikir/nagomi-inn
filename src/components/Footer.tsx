@@ -49,7 +49,8 @@ export function Footer() {
                   {site.contact.phone}
                 </a>
               </li>
-              <li>
+              {/* Plain handle: desktop only — mobile gets the gradient button below. */}
+              <li className="hidden md:block">
                 <a
                   href={`https://instagram.com/${site.contact.instagram}`}
                   target="_blank"
@@ -60,6 +61,26 @@ export function Footer() {
                 </a>
               </li>
             </ul>
+
+            {/* Mobile-only Instagram button — a phone can't scan the QR, so give
+                it a tappable brand-gradient call-to-action instead. */}
+            <a
+              href={`https://instagram.com/${site.contact.instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 flex items-center gap-3 rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#fa7e1e] via-30% to-[#d62976] px-5 py-3.5 text-white shadow-lg shadow-black/25 transition-transform active:scale-[0.98] md:hidden"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20">
+                <InstagramGlyph size={22} />
+              </span>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="text-sm font-semibold">{t.footer.instagramQr}</span>
+                <span className="truncate text-xs text-white/85">@{site.contact.instagram}</span>
+              </span>
+              <span className="ml-auto shrink-0 text-lg" aria-hidden="true">
+                ↗
+              </span>
+            </a>
 
             {/* Instagram QR — desktop only (on a phone the handle link above
                 is the natural path; you can't scan your own screen). The white
@@ -94,10 +115,10 @@ export function Footer() {
   );
 }
 
-/** Small monochrome Instagram camera glyph (inherits text color). */
-function InstagramGlyph() {
+/** Monochrome Instagram camera glyph (inherits text color). */
+function InstagramGlyph({ size = 12 }: { size?: number }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <rect x="2" y="2" width="20" height="20" rx="5.5" />
       <circle cx="12" cy="12" r="4.2" />
       <circle cx="17.6" cy="6.4" r="1.2" fill="currentColor" stroke="none" />
