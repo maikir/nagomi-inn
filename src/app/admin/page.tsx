@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { formatYen } from "@/config/site";
@@ -40,7 +40,7 @@ export default function AdminPage() {
   const [view, setView] = useState<"list" | "calendar">("list");
   const [status, setStatus] = useState<"all" | "confirmed" | "pending" | "cancelled">("all");
   const [syncing, setSyncing] = useState(false);
-  const [syncMsg, setSyncMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [syncMsg, setSyncMsg] = useState<({ tone: "ok" | "error" } & Message) | null>(null);
   // Which phase the initial load is in, for the loading screen's text.
   const [loadingStep, setLoadingStep] = useState<"auth" | "data">("auth");
 
@@ -80,21 +80,17 @@ export default function AdminPage() {
         synced?: SyncResult[];
       };
       if (!res || !res.ok || json.configured === false) {
-        setSyncMsg(
-          json.configured === false
-            ? { tone: "error", text: t.admin.syncNotConnected }
-            : { tone: "error", text: t.admin.syncError },
-        );
+        setSyncMsg({ tone: "error", key: json.configured === false ? "admin.syncNotConnected" : "admin.syncError" });
         return;
       }
       const total = (json.synced ?? []).reduce((n, r) => n + (r.error ? 0 : r.events), 0);
       const summary = (json.synced ?? [])
         .map((r) => `${r.source}: ${r.error ? "—" : r.events}`)
         .join(" · ");
-      setSyncMsg({ tone: "ok", text: total > 0 ? fill(t.admin.syncDone, { summary }) : t.admin.syncNone });
+      setSyncMsg(total > 0 ? { tone: "ok", key: "admin.syncDone", params: { summary } } : { tone: "ok", key: "admin.syncNone" });
       await loadData(); // reflect freshly-synced blocks on the calendar
     } catch {
-      setSyncMsg({ tone: "error", text: t.admin.syncError });
+      setSyncMsg({ tone: "error", key: "admin.syncError" });
     } finally {
       setSyncing(false);
     }
@@ -251,7 +247,7 @@ export default function AdminPage() {
               </button>
               {syncMsg && (
                 <span className={`text-sm ${syncMsg.tone === "ok" ? "text-moss" : "text-copper-bright"}`}>
-                  {syncMsg.text}
+                  {resolveMessage(t, syncMsg)}
                 </span>
               )}
             </div>

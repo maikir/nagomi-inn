@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { formatYen } from "@/config/site";
@@ -18,7 +18,7 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<({ tone: "ok" | "error" } & Message) | null>(null);
 
   const needsSignIn = authEnabled && !authLoading && !user;
 
@@ -79,23 +79,21 @@ export default function ReservationsPage() {
             refundYen?: number;
           };
           if (!res.ok || !json.cancelled) throw new Error("cancel failed");
-          setNotice({
-            tone: "ok",
-            text:
-              json.refundPercent === 100
-                ? t.reservations.cancelledRefunded
-                : json.refundPercent === 50
-                  ? fill(t.reservations.cancelledHalf, { refund: formatYen(json.refundYen ?? 0) })
-                  : t.reservations.cancelledNone,
-          });
+          setNotice(
+            json.refundPercent === 100
+              ? { tone: "ok", key: "reservations.cancelledRefunded" }
+              : json.refundPercent === 50
+                ? { tone: "ok", key: "reservations.cancelledHalf", params: { refund: formatYen(json.refundYen ?? 0) } }
+                : { tone: "ok", key: "reservations.cancelledNone" },
+          );
         } catch {
-          setNotice({ tone: "error", text: t.reservations.cancelError });
+          setNotice({ tone: "error", key: "reservations.cancelError" });
           setCancelling(null);
           return;
         }
       } else {
         await store.cancel(r.id);
-        setNotice({ tone: "ok", text: t.reservations.cancelledPlain });
+        setNotice({ tone: "ok", key: "reservations.cancelledPlain" });
       }
       setReservations(await store.list());
       setCancelling(null);
@@ -117,7 +115,7 @@ export default function ReservationsPage() {
             notice.tone === "ok" ? "border-moss/60 bg-moss/10 text-paper" : "border-copper/60 bg-copper/10 text-copper-bright"
           }`}
         >
-          {notice.text}
+          {resolveMessage(t, notice)}
         </p>
       )}
 

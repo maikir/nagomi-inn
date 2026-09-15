@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useLang } from "@/lib/i18n/LanguageProvider";
+import { useLang, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/LogoMark";
@@ -27,8 +27,8 @@ function LoginInner() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<Message | null>(null);
+  const [notice, setNotice] = useState<Message | null>(null);
 
   // Already signed in → continue on.
   if (user) {
@@ -60,7 +60,7 @@ function LoginInner() {
         router.replace(next);
       } else {
         if (password !== confirm) {
-          setError(t.auth.errorPasswordMismatch);
+          setError({ key: "auth.errorPasswordMismatch" });
           setBusy(false);
           return;
         }
@@ -72,13 +72,13 @@ function LoginInner() {
         if (error) throw error;
         // If email confirmation is on, there's no session yet.
         if (data.session) router.replace(next);
-        else setNotice(t.auth.checkEmail);
+        else setNotice({ key: "auth.checkEmail" });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/invalid login credentials/i.test(msg)) setError(t.auth.errorInvalid);
-      else if (/password/i.test(msg) && /6|short|weak/i.test(msg)) setError(t.auth.errorWeakPassword);
-      else setError(t.auth.errorGeneric);
+      if (/invalid login credentials/i.test(msg)) setError({ key: "auth.errorInvalid" });
+      else if (/password/i.test(msg) && /6|short|weak/i.test(msg)) setError({ key: "auth.errorWeakPassword" });
+      else setError({ key: "auth.errorGeneric" });
     } finally {
       setBusy(false);
     }
@@ -164,12 +164,12 @@ function LoginInner() {
 
             {error && (
               <p className="border border-copper/60 bg-copper/10 px-4 py-3 text-sm text-copper-bright" role="alert">
-                {error}
+                {resolveMessage(t, error)}
               </p>
             )}
             {notice && (
               <p className="border border-moss/60 bg-moss/10 px-4 py-3 text-sm text-paper" role="status">
-                {notice}
+                {resolveMessage(t, notice)}
               </p>
             )}
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { site, formatYen } from "@/config/site";
@@ -50,7 +50,7 @@ export default function ReservePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Message | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
   // Saving is disabled until restoration has committed — the flag is set in the
@@ -111,11 +111,11 @@ export default function ReservePage() {
   function next() {
     setError(null);
     if (step === "dates") {
-      if (!checkIn || !checkOut || nights < p.minNights) return setError(t.reserve.errorDates);
+      if (!checkIn || !checkOut || nights < p.minNights) return setError({ key: "reserve.errorDates" });
       setStep("details");
     } else if (step === "details") {
-      if (!name.trim()) return setError(t.reserve.errorName);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError(t.reserve.errorEmail);
+      if (!name.trim()) return setError({ key: "reserve.errorName" });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError({ key: "reserve.errorEmail" });
       setStep("confirm");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -170,16 +170,16 @@ export default function ReservePage() {
           return; // keep `submitting` on while the browser navigates to Stripe
         }
         if (json.error === "UNAVAILABLE") {
-          setError(t.reserve.errorUnavailable);
+          setError({ key: "reserve.errorUnavailable" });
           setBooked(await store.bookedDates());
           setStep("dates");
         } else if (json.error === "AUTH_REQUIRED") {
           router.push("/login?next=/reserve");
         } else {
-          setError(t.reserve.payError);
+          setError({ key: "reserve.payError" });
         }
       } catch {
-        setError(t.reserve.payError);
+        setError({ key: "reserve.payError" });
       } finally {
         setSubmitting(false);
       }
@@ -207,13 +207,13 @@ export default function ReservePage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       if (e instanceof Error && e.message === "UNAVAILABLE") {
-        setError(t.reserve.errorUnavailable);
+        setError({ key: "reserve.errorUnavailable" });
         setBooked(await store.bookedDates());
         setStep("dates");
       } else if (e instanceof Error && e.message === "AUTH_REQUIRED") {
         router.push("/login?next=/reserve");
       } else {
-        setError(String(e));
+        setError({ key: String(e) });
       }
     } finally {
       setSubmitting(false);
@@ -256,7 +256,7 @@ export default function ReservePage() {
 
       {error && (
         <div className="mt-8 border border-copper/60 bg-copper/10 px-5 py-4 text-sm text-copper-bright" role="alert">
-          {error}
+          {resolveMessage(t, error)}
         </div>
       )}
 
