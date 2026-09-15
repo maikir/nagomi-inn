@@ -49,6 +49,7 @@ export default function AdminPage() {
     if (!session) return null;
     return fetch(path, {
       ...init,
+      cache: "no-store", // always fetch live owner data, never a cached copy
       headers: { ...init?.headers, Authorization: `Bearer ${session.access_token}` },
     });
   }, []);

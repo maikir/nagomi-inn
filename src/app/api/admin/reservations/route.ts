@@ -10,7 +10,13 @@ import { parseImportUrls } from "@/lib/server/icalSync";
  * the service role. RLS stays strict for everyone else — this is the only path
  * that sees every booking, and it's gated here on the server.
  */
+// Owner data must always be live: opt this route AND the supabase-js fetches
+// inside it out of Next's Data Cache, and tell any CDN/browser not to store it.
+// (force-dynamic alone doesn't reliably stop the internal fetch from caching,
+// which is what made /admin lag behind the direct-read customer pages.)
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 type Row = {
   id: string;
@@ -45,28 +51,31 @@ export async function GET(req: Request) {
     .from("external_blocks")
     .select("source, check_in, check_out, summary");
 
-  return NextResponse.json({
-    reservations: (rows as Row[]).map((r) => ({
-      id: r.id,
-      checkIn: r.check_in,
-      checkOut: r.check_out,
-      guests: r.guests,
-      name: r.name,
-      email: r.email,
-      phone: r.phone ?? undefined,
-      notes: r.notes ?? undefined,
-      totalYen: r.total_yen,
-      status: r.status,
-      createdAt: r.created_at,
-      paidAt: r.paid_at ?? undefined,
-    })),
-    externalBlocks: (blocks ?? []).map((b) => ({
-      source: b.source as string,
-      checkIn: b.check_in as string,
-      checkOut: b.check_out as string,
-      summary: (b.summary as string | null) ?? undefined,
-    })),
-    // Whether any OTA calendars are connected — drives the "refresh" button.
-    icalConfigured: parseImportUrls().length > 0,
-  });
+  return NextResponse.json(
+    {
+      reservations: (rows as Row[]).map((r) => ({
+        id: r.id,
+        checkIn: r.check_in,
+        checkOut: r.check_out,
+        guests: r.guests,
+        name: r.name,
+        email: r.email,
+        phone: r.phone ?? undefined,
+        notes: r.notes ?? undefined,
+        totalYen: r.total_yen,
+        status: r.status,
+        createdAt: r.created_at,
+        paidAt: r.paid_at ?? undefined,
+      })),
+      externalBlocks: (blocks ?? []).map((b) => ({
+        source: b.source as string,
+        checkIn: b.check_in as string,
+        checkOut: b.check_out as string,
+        summary: (b.summary as string | null) ?? undefined,
+      })),
+      // Whether any OTA calendars are connected — drives the "refresh" button.
+      icalConfigured: parseImportUrls().length > 0,
+    },
+    { headers: { "Cache-Control": "no-store, max-age=0" } },
+  );
 }
