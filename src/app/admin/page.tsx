@@ -10,6 +10,8 @@ import { formatYen } from "@/config/site";
 import { formatDate, nightsBetween, nightsOf, todayISO } from "@/lib/reservations";
 import { findConflicts } from "@/lib/reservations/conflicts";
 import { OccupancyCalendar } from "@/components/admin/OccupancyCalendar";
+import { PricingForm } from "@/components/admin/PricingForm";
+import type { Pricing } from "@/lib/pricing";
 
 type AdminReservation = {
   id: string;
@@ -38,7 +40,8 @@ export default function AdminPage() {
 
   const [screen, setScreen] = useState<Screen>("loading");
   const [data, setData] = useState<Payload | null>(null);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "calendar" | "pricing">("list");
+  const [pricing, setPricing] = useState<Pricing | null>(null);
   const [status, setStatus] = useState<"all" | "confirmed" | "pending" | "cancelled">("all");
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<({ tone: "ok" | "error" } & Message) | null>(null);
@@ -115,6 +118,20 @@ export default function AdminPage() {
       cancelled = true;
     };
   }, [loading, enabled, user, router, loadData]);
+
+  // Load editable pricing once the owner is verified (for the Pricing tab).
+  useEffect(() => {
+    if (screen !== "ready") return;
+    let cancelled = false;
+    authedFetch("/api/admin/pricing")
+      .then(async (r) => {
+        if (!cancelled && r && r.ok) setPricing((await r.json()) as Pricing);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [screen, authedFetch]);
 
   const today = todayISO();
 
@@ -236,7 +253,7 @@ export default function AdminPage() {
 
       {/* View toggle */}
       <div className="mt-12 flex gap-2 border-b border-paper/10">
-        {(["list", "calendar"] as const).map((v) => (
+        {(["list", "calendar", "pricing"] as const).map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -244,12 +261,21 @@ export default function AdminPage() {
               view === v ? "border-copper text-copper-bright" : "border-transparent text-paper-faint hover:text-paper-dim"
             }`}
           >
-            {(v === "list" ? t.admin.tabList : t.admin.tabCalendar).toUpperCase()}
+            {(v === "list" ? t.admin.tabList : v === "calendar" ? t.admin.tabCalendar : t.admin.tabPricing).toUpperCase()}
           </button>
         ))}
       </div>
 
-      {view === "calendar" ? (
+      {view === "pricing" ? (
+        <div className="mt-8">
+          <h2 className="font-display text-2xl">{t.admin.pricingTitle}</h2>
+          {pricing ? (
+            <PricingForm initial={pricing} authedFetch={authedFetch} />
+          ) : (
+            <div className="mt-8 h-40 animate-pulse border border-paper/10 bg-sumi-900" />
+          )}
+        </div>
+      ) : view === "calendar" ? (
         <div className="mt-8">
           {/* Refresh Airbnb / Booking.com feeds on demand (admin-gated route,
               not the cron secret). Only shown when feeds are connected. */}

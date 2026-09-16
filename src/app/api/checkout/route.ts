@@ -4,6 +4,8 @@ import { site } from "@/config/site";
 import { nightsBetween } from "@/lib/reservations/dates";
 import { getSupabaseAdmin, getSupabaseAsUser } from "@/lib/server/supabaseAdmin";
 import { syncExternalCalendars } from "@/lib/server/icalSync";
+import { getEffectivePricing } from "@/lib/server/pricing";
+import { computeBreakdown } from "@/lib/pricing";
 
 /**
  * POST /api/checkout
@@ -46,7 +48,8 @@ export async function POST(req: Request) {
   // ── validate ──────────────────────────────────────────────────────────────
   const body = (await req.json().catch(() => ({}))) as Body;
   const { checkIn, checkOut, guests, name, email } = body;
-  const p = site.pricing;
+  // Pricing comes from the DB (owner-editable), not the client — authoritative.
+  const p = await getEffectivePricing();
   const today = new Date().toISOString().slice(0, 10);
   if (
     !checkIn || !checkOut || !ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut) ||
@@ -62,8 +65,7 @@ export async function POST(req: Request) {
   }
 
   // ── price: authoritative, server-side ─────────────────────────────────────
-  const extraGuests = Math.max(0, guests - p.includedGuests);
-  const total = nights * p.baseNightly + extraGuests * p.perGuestNightly * nights + p.cleaningFee;
+  const { total } = computeBreakdown(p, nights, guests);
 
   // ── freshen OTA calendars if stale, then hold the dates ───────────────────
   try {

@@ -7,6 +7,7 @@ import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/Language
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { site, formatYen } from "@/config/site";
+import { defaultPricing, computeBreakdown, type Pricing } from "@/lib/pricing";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import { LogoMark } from "@/components/LogoMark";
 import {
@@ -57,6 +58,9 @@ export default function ReservePage() {
   // same batch as the restored values, so a save can never observe pre-restore
   // state (this also survives StrictMode's double effect run in dev).
   const [draftReady, setDraftReady] = useState(false);
+  // Live pricing from the DB (owner-editable); starts at the built-in defaults
+  // and updates once fetched, so the estimate matches what checkout will charge.
+  const [pricing, setPricing] = useState<Pricing>(defaultPricing);
 
   useEffect(() => {
     store.bookedDates().then(setBooked).catch(() => {});
@@ -90,6 +94,16 @@ export default function ReservePage() {
     } catch {}
   }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes]);
 
+  // Load current pricing (falls back to defaults on any error / demo mode).
+  useEffect(() => {
+    fetch("/api/pricing", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json && typeof json.baseNightly === "number") setPricing(json as Pricing);
+      })
+      .catch(() => {});
+  }, []);
+
   // Signed-in guests get their details prefilled.
   useEffect(() => {
     if (!user) return;
@@ -99,11 +113,8 @@ export default function ReservePage() {
   }, [user]);
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
-  const p = site.pricing;
-  const extraGuests = Math.max(0, guests - p.includedGuests);
-  const baseTotal = nights * p.baseNightly;
-  const extraTotal = extraGuests * p.perGuestNightly * nights;
-  const total = nights > 0 ? baseTotal + extraTotal + p.cleaningFee : 0;
+  const p = pricing;
+  const { extraGuests, baseTotal, extraTotal, total } = computeBreakdown(p, nights, guests);
 
   const nightsLabel = fill(nights === 1 ? t.reserve.nights_one : t.reserve.nights_other, { n: nights });
   const guestsLabel = fill(guests === 1 ? t.reserve.guest_one : t.reserve.guest_other, { n: guests });
@@ -305,6 +316,7 @@ export default function ReservePage() {
           </div>
 
           <Summary
+            pricing={p}
             checkIn={checkIn}
             checkOut={checkOut}
             nights={nights}
@@ -343,6 +355,7 @@ export default function ReservePage() {
           </div>
 
           <Summary
+            pricing={p}
             checkIn={checkIn}
             checkOut={checkOut}
             nights={nights}
@@ -497,6 +510,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 function Summary(props: {
+  pricing: Pricing;
   checkIn: string | null;
   checkOut: string | null;
   nights: number;
@@ -508,7 +522,7 @@ function Summary(props: {
   total: number;
 }) {
   const { t, lang } = useLang();
-  const p = site.pricing;
+  const p = props.pricing;
 
   return (
     <aside className="h-fit border border-paper/15 bg-sumi-900 p-7 lg:sticky lg:top-28">
