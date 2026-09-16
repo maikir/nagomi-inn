@@ -6,7 +6,20 @@ import { toISODate, nightsOf, todayISO } from "@/lib/reservations/dates";
 
 type Reservation = { checkIn: string; checkOut: string; status: string; name: string };
 type ExternalBlock = { checkIn: string; checkOut: string; source: string; summary?: string };
-type Occ = { type: "confirmed" | "pending" | "external"; label: string };
+/** label = source-prefixed text shown in the cell; title = raw detail for hover. */
+type Occ = { type: "confirmed" | "pending" | "external"; label: string; title: string };
+
+/** Airbnb tags reservations "Reserved" and manual/blocked dates "Not available". */
+function externalIsBlocked(summary?: string): boolean {
+  const s = (summary ?? "").toLowerCase();
+  return s.includes("not available") || s.includes("unavailable") || s.includes("blocked");
+}
+
+function externalSourceName(source: string): string {
+  if (source === "airbnb") return "Airbnb";
+  if (source === "booking") return "Booking.com";
+  return source ? source[0].toUpperCase() + source.slice(1) : "External";
+}
 
 const WEEKDAYS_EN = ["S", "M", "T", "W", "T", "F", "S"];
 const WEEKDAYS_JA = ["日", "月", "火", "水", "木", "金", "土"];
@@ -39,14 +52,18 @@ export function OccupancyCalendar({
     for (const r of reservations) {
       if (r.status !== "confirmed" && r.status !== "pending") continue;
       const type = r.status === "confirmed" ? "confirmed" : "pending";
-      for (const night of nightsOf(r.checkIn, r.checkOut)) place(night, { type, label: r.name });
+      // Lead with the source so it's obvious this is a website booking; keep the name.
+      const label = r.name ? `${t.admin.calSourceSite}・${r.name}` : t.admin.calSourceSite;
+      for (const night of nightsOf(r.checkIn, r.checkOut)) place(night, { type, label, title: r.name || label });
     }
     for (const b of externalBlocks) {
+      const detail = externalIsBlocked(b.summary) ? t.admin.calDetailBlocked : t.admin.calDetailBooking;
+      const label = `${externalSourceName(b.source)}・${detail}`;
       for (const night of nightsOf(b.checkIn, b.checkOut))
-        place(night, { type: "external", label: b.summary || b.source });
+        place(night, { type: "external", label, title: b.summary || label });
     }
     return map;
-  }, [reservations, externalBlocks]);
+  }, [reservations, externalBlocks, t]);
 
   const weekdays = lang === "ja" ? WEEKDAYS_JA : WEEKDAYS_EN;
   const today = todayISO();
@@ -103,7 +120,7 @@ export function OccupancyCalendar({
           return (
             <div
               key={iso}
-              title={o ? o.label : undefined}
+              title={o ? o.title : undefined}
               className={`relative min-h-[62px] border p-1.5 text-left ${
                 conflict ? "border-red-500/70 bg-red-500/15" : cellClass(o)
               } ${isToday ? "ring-1 ring-copper" : ""}`}
