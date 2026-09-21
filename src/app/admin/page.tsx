@@ -209,18 +209,44 @@ export default function AdminPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-5 pb-28 pt-28 md:px-8 md:pt-36">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-[11px] tracking-[0.35em] text-copper-bright">田舎民泊 和</p>
           <h1 className="mt-3 font-display text-4xl md:text-5xl">{t.admin.title}</h1>
           <p className="mt-3 text-paper-dim">{t.admin.subtitle}</p>
         </div>
-        <button
-          onClick={() => signOut()}
-          className="text-xs tracking-[0.2em] text-paper-faint underline-offset-4 transition-colors hover:text-copper-bright hover:underline"
-        >
-          {t.admin.signOut}
-        </button>
+        {/* Top-level controls: refresh OTA calendars (always accessible, not
+            buried in the calendar tab) + sign out. */}
+        <div className="flex flex-col items-end gap-3">
+          <button
+            onClick={() => signOut()}
+            className="text-xs tracking-[0.2em] text-paper-faint underline-offset-4 transition-colors hover:text-copper-bright hover:underline"
+          >
+            {t.admin.signOut}
+          </button>
+          {data?.icalConfigured && (
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {syncMsg && (
+                <span className={`text-sm ${syncMsg.tone === "ok" ? "text-moss" : "text-copper-bright"}`}>
+                  {resolveMessage(t, syncMsg)}
+                </span>
+              )}
+              <button
+                onClick={runSync}
+                disabled={syncing}
+                className="flex items-center gap-2.5 border border-paper/30 px-5 py-2.5 text-xs tracking-[0.2em] text-paper-dim transition-all hover:border-copper hover:text-copper-bright disabled:pointer-events-none disabled:opacity-60"
+              >
+                {syncing && (
+                  <span
+                    className="h-3.5 w-3.5 animate-spin rounded-full border border-current border-t-transparent"
+                    aria-hidden="true"
+                  />
+                )}
+                {(syncing ? t.admin.syncing : t.admin.syncNow).toUpperCase()}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Double-booking alert — the same dates held by 2+ bookings. */}
@@ -277,37 +303,11 @@ export default function AdminPage() {
         </div>
       ) : view === "calendar" ? (
         <div className="mt-8">
-          {/* Refresh Airbnb / Booking.com feeds on demand (admin-gated route,
-              not the cron secret). Only shown when feeds are connected. */}
-          {data?.icalConfigured && (
-            <div className="flex flex-wrap items-center gap-4">
-              <button
-                onClick={runSync}
-                disabled={syncing}
-                className="flex items-center gap-2.5 border border-paper/30 px-5 py-2.5 text-xs tracking-[0.2em] text-paper-dim transition-all hover:border-copper hover:text-copper-bright disabled:pointer-events-none disabled:opacity-60"
-              >
-                {syncing && (
-                  <span
-                    className="h-3.5 w-3.5 animate-spin rounded-full border border-current border-t-transparent"
-                    aria-hidden="true"
-                  />
-                )}
-                {(syncing ? t.admin.syncing : t.admin.syncNow).toUpperCase()}
-              </button>
-              {syncMsg && (
-                <span className={`text-sm ${syncMsg.tone === "ok" ? "text-moss" : "text-copper-bright"}`}>
-                  {resolveMessage(t, syncMsg)}
-                </span>
-              )}
-            </div>
-          )}
-          <div className="mt-8">
-            <OccupancyCalendar
-              reservations={reservations}
-              externalBlocks={data?.externalBlocks ?? []}
-              conflictNights={conflicts.nights}
-            />
-          </div>
+          <OccupancyCalendar
+            reservations={reservations}
+            externalBlocks={data?.externalBlocks ?? []}
+            conflictNights={conflicts.nights}
+          />
         </div>
       ) : (
         <div className="mt-8">
