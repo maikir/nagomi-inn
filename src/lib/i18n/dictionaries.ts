@@ -89,7 +89,7 @@ export const en = {
 
   cta: {
     heading1: "Countryside and Starry Sky.",
-    heading2: "A hot Sauna and BBQ. It's okay for Adults to have a bit of Fun somtimes too",
+    heading2: "A hot Sauna and BBQ. It's okay for Adults to have a bit of Fun somtimes too.",
     body: "Enjoy a soothing moment with your loved ones in a space designed with meticulous care.",
     button: "Check dates & reserve",
   },
