@@ -121,7 +121,7 @@ export async function POST(req: Request) {
           },
         },
       ],
-      metadata: { reservation_id: reservation.id, user_id: user.id },
+      metadata: { reservation_id: reservation.id, user_id: user.id, lang: ja ? "ja" : "en" },
       // Unpaid sessions expire and the webhook frees the held dates.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       success_url: `${origin}/reserve/success?rid=${reservation.id}`,

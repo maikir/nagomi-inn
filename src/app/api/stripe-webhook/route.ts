@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { sendReservationConfirmation } from "@/lib/server/reservationEmail";
 
 /**
  * POST /api/stripe-webhook
  * Stripe → us. Confirms reservations on payment; frees held dates when a
  * checkout session expires unpaid. Configure the endpoint in the Stripe
- * dashboard (events: checkout.session.completed, checkout.session.expired)
+ * dashboard (events: checkout.session.completed, checkout.session.expired,
+ * checkout.session.async_payment_succeeded, checkout.session.async_payment_failed)
  * and put its signing secret in STRIPE_WEBHOOK_SECRET.
  */
 
@@ -31,11 +33,27 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
+  const paymentEvent = event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded";
+  const releaseEvent = event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed";
+  if (paymentEvent || releaseEvent) {
     const session = event.data.object as Stripe.Checkout.Session;
     const reservationId = session.metadata?.reservation_id;
     if (reservationId) {
-      if (event.type === "checkout.session.completed") {
+      if (paymentEvent) {
+        // Completing Checkout does not necessarily mean payment has settled.
+        if (session.mode !== "payment" || session.payment_status !== "paid") {
+          return NextResponse.json({ received: true });
+        }
+        const { data: reservation, error: readError } = await admin.from("reservations")
+          .select("id, name, email, check_in, check_out, guests, total_yen, status, stripe_session_id")
+          .eq("id", reservationId).single();
+        if (readError || !reservation) return NextResponse.json({ error: "db error" }, { status: 500 });
+        if (session.currency !== "jpy" || session.amount_total !== reservation.total_yen ||
+          (reservation.stripe_session_id && reservation.stripe_session_id !== session.id)) {
+          console.error("webhook payment mismatch:", reservationId);
+          return NextResponse.json({ error: "payment mismatch" }, { status: 500 });
+        }
+        if (reservation.status === "cancelled") return NextResponse.json({ received: true });
         const { error } = await admin
           .from("reservations")
           .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id })
@@ -46,13 +64,30 @@ export async function POST(req: Request) {
           // 500 → Stripe retries the delivery.
           return NextResponse.json({ error: "db error" }, { status: 500 });
         }
+        // Re-read on every delivery, including retries after email failure.
+        // A cancelled reservation must never be revived by a repeated event.
+        const { data: confirmed, error: confirmReadError } = await admin.from("reservations")
+          .select("id, name, email, check_in, check_out, guests, total_yen")
+          .eq("id", reservationId).eq("status", "confirmed")
+          .eq("stripe_session_id", session.id).not("paid_at", "is", null).maybeSingle();
+        if (confirmReadError) return NextResponse.json({ error: "db error" }, { status: 500 });
+        if (confirmed) {
+          try {
+            await sendReservationConfirmation(admin, confirmed, session.metadata?.lang === "ja" ? "ja" : "en");
+          } catch (error) {
+            console.error("confirmation email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
+            // Payment stays confirmed. Stripe retries this webhook, including the email.
+            return NextResponse.json({ error: "confirmation email failed" }, { status: 500 });
+          }
+        }
       } else {
         // Expired unpaid → release the dates.
-        await admin
+        const { error } = await admin
           .from("reservations")
           .update({ status: "cancelled" })
           .eq("id", reservationId)
           .eq("status", "pending");
+        if (error) return NextResponse.json({ error: "db error" }, { status: 500 });
       }
     }
   }

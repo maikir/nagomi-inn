@@ -17,7 +17,7 @@ export const site = {
   url: "https://nagomi-inn.example.com", // replace with the production domain
 
   contact: {
-    email: "info@nagomi-inn.jp", // PLACEHOLDER
+    email: "nagomi.inn.miyazaki@gmail.com",
     phone: "+81 70-6461-0434",
     instagram: "nagomi_inn_miyazaki",
   },
