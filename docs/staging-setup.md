@@ -42,6 +42,10 @@ the existing payment and reservation email migrations). Enable `refund.created`,
 `refund.updated`, and `refund.failed` on the endpoint, in addition to the Checkout
 events. Pending refunds keep the reservation active until Stripe reports success.
 
+Also apply `supabase/reservation-language.sql` before deploying language
+persistence. New bookings save their checkout language for both confirmation
+and cancellation emails; older bookings recover it from Stripe when possible.
+
 In **Test mode**, create a webhook (Developers → Webhooks → Add endpoint):
 - URL: `https://test.nagomi-inn-miyazaki.com/api/stripe-webhook`
 - Events: `checkout.session.completed`, `checkout.session.expired`,

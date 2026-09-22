@@ -116,8 +116,18 @@ Paid direct bookings can send one confirmation to the email entered on the
 reservation form. The server verifies the Stripe signature, paid status, amount,
 currency, and session association before confirming and emailing. The message
 includes the booking number, property, address, dates and times (JST), nights,
-guests, amount paid, and contact details. It follows the checkout language (English
-or Japanese; older sessions default to English). Demo bookings do not send emails.
+guests, amount paid, and contact details. Both booking and cancellation emails
+use the language saved on the reservation at checkout (`reservations.lang`,
+English or Japanese). Changing the site's display language afterward does not
+change the booking's email language. Demo bookings do not send emails.
+
+Run `supabase/reservation-language.sql` before deploying this version. Older
+reservations keep a NULL language until it can be recovered from Stripe's Checkout
+metadata (or explicit Checkout locale). For a legacy cancellation without either,
+the current browser language is the fallback, then English. The recovered language
+is saved on the reservation. Existing cancellation requests and queued email
+payloads keep their original language for consistent, idempotent retries; this
+migration does not rewrite or resend past emails.
 
 Resend delivers the email using its HTTP API; a small HTML/plain-text template
 keeps this dependency-free. React Email is optional for more elaborate designs.

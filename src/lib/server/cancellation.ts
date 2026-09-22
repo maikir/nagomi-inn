@@ -2,8 +2,9 @@ import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { refundTierFor } from "@/lib/reservations/cancellation";
 import { sendCancellationConfirmation, type PaidReservation } from "./reservationEmail";
+import { reservationLanguage, type ReservationLanguage } from "@/lib/reservations/language";
 
-type ReservationRow = PaidReservation & { status: string; paid_at: string | null; stripe_session_id: string | null };
+type ReservationRow = PaidReservation & { status: string; paid_at: string | null; stripe_session_id: string | null; lang?: ReservationLanguage | null };
 type Cancellation = {
   reservation_id: string;
   refund_yen: number;
@@ -114,7 +115,7 @@ export async function continueCancellation(admin: SupabaseClient, stripe: Stripe
   return (await applyCancellationRefund(admin, refund))!;
 }
 
-export async function requestCancellation(admin: SupabaseClient, stripe: Stripe, reservation: ReservationRow, lang: "en" | "ja") {
+export async function requestCancellation(admin: SupabaseClient, stripe: Stripe, reservation: ReservationRow, requestedLang?: string) {
   let c = await loadCancellation(admin, reservation.id);
   if (!c) {
     if (reservation.status !== "confirmed" || !reservation.paid_at || !reservation.stripe_session_id) {
@@ -126,9 +127,21 @@ export async function requestCancellation(admin: SupabaseClient, stripe: Stripe,
     const intent = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id;
     if (!intent || session.payment_status !== "paid" || session.currency !== "jpy" || session.amount_total !== reservation.total_yen ||
       session.metadata?.reservation_id !== reservation.id) throw new Error("Cancellation payment mismatch");
+    // Keep emails in the language of the booking, regardless of the language
+    // selected later in another browser. Recover legacy bookings from Stripe.
+    const resolvedLang = reservationLanguage(reservation.lang, session.metadata?.lang, session.locale, requestedLang);
+    if (!reservation.lang) {
+      const { error: languageError } = await admin.from("reservations")
+        .update({ lang: resolvedLang }).eq("id", reservation.id).is("lang", null);
+      if (languageError) throw new Error("Could not save reservation language");
+    }
+    // Read the persisted value so concurrent requests agree on the language.
+    const { data: saved, error: languageReadError } = await admin.from("reservations")
+      .select("lang").eq("id", reservation.id).single();
+    if (languageReadError || !saved) throw new Error("Could not read reservation language");
     const { error } = await admin.from("reservation_cancellations").upsert({
       reservation_id: reservation.id, refund_yen: refundYen, refund_percent: refundPercent,
-      payment_intent_id: intent, lang,
+      payment_intent_id: intent, lang: reservationLanguage(saved.lang, resolvedLang),
     }, { onConflict: "reservation_id", ignoreDuplicates: true });
     if (error) throw new Error("Could not save cancellation request");
     c = await loadCancellation(admin, reservation.id);

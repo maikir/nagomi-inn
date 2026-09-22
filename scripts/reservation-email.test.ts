@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { confirmationEmail, resendFailure } from "../src/lib/server/reservationEmail";
 import { requestCancellation, applyCancellationRefund, retryCancellations } from "../src/lib/server/cancellation";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reservationLanguage } from "../src/lib/reservations/language";
 
 // In-memory DB and HTTP transport: no real bookings, payments, or emails.
 type Row = Record<string, unknown>;
@@ -209,7 +210,7 @@ test("English template includes hotel details and escapes user input", () => {
 const asAdmin = admin as unknown as SupabaseClient;
 function cancellationFixture(status = "succeeded") {
   setSystemTime(new Date("2026-11-01T00:00:00Z"));
-  const booking = { ...reservation, check_in: "2026-12-02", check_out: "2026-12-03", status: "confirmed", paid_at: "2026-10-01T00:00:00Z", cancellation_state: null };
+  const booking = { ...reservation, check_in: "2026-12-02", check_out: "2026-12-03", status: "confirmed", paid_at: "2026-10-01T00:00:00Z", cancellation_state: null, lang: null as "en" | "ja" | null };
   tables.reservations = [booking];
   let refund = {
     id: "re_test", amount: booking.total_yen, currency: "jpy", payment_intent: "pi_test", status,
@@ -220,11 +221,12 @@ function cancellationFixture(status = "succeeded") {
     return { ...refund };
   });
   const retrieve = mock(async () => ({ ...refund }));
+  const checkoutSession = { ...session, metadata: { ...session.metadata, lang: "en" as string | undefined }, locale: "auto", payment_intent: "pi_test" };
   const stripe = {
-    checkout: { sessions: { retrieve: mock(async () => ({ ...session, payment_intent: "pi_test" })) } },
+    checkout: { sessions: { retrieve: mock(async () => checkoutSession) } },
     refunds: { create, retrieve },
   } as unknown as Stripe;
-  return { booking, stripe, create, retrieve, refund: () => refund };
+  return { booking, stripe, create, retrieve, checkoutSession, refund: () => refund };
 }
 
 test("successful cancellation sends one email with full refund and does not refund again", async () => {
@@ -245,6 +247,7 @@ test("successful cancellation sends one email with full refund and does not refu
 test("partial refund amount is frozen across retries and policy boundaries", async () => {
   const { booking, stripe, create, refund } = cancellationFixture("pending");
   booking.check_in = "2026-11-04";
+  booking.lang = "ja";
   booking.check_out = "2026-11-05";
   const first = await requestCancellation(asAdmin, stripe, booking, "ja");
   expect(first).toMatchObject({ pending: true, cancelled: false, refundYen: 80000 });
@@ -375,4 +378,52 @@ test("concurrent cancellation requests use identical refund idempotency keys", a
   expect(create.mock.calls.length).toBeGreaterThan(0);
   for (const call of create.mock.calls) expect(call).toEqual(create.mock.calls[0]);
   expect(sends).not.toHaveBeenCalled();
+});
+
+test.each(["en", "ja"] as const)("cancellation uses saved %s booking language over browser and Stripe", async lang => {
+  const { booking, stripe, checkoutSession } = cancellationFixture();
+  booking.lang = lang;
+  const other = lang === "ja" ? "en" : "ja";
+  checkoutSession.metadata.lang = other;
+  await requestCancellation(asAdmin, stripe, booking, other);
+  expect(tables.reservation_cancellations[0].lang).toBe(lang);
+  const payload = JSON.parse(sends.mock.calls[0][1]!.body as string);
+  expect(payload.subject).toContain(lang === "ja" ? "ご予約をキャンセルしました" : "Your reservation has been cancelled");
+});
+
+test("legacy Japanese booking recovers Stripe language even when cancellation body omits it", async () => {
+  const { booking, stripe, checkoutSession } = cancellationFixture();
+  checkoutSession.metadata.lang = "ja";
+  await requestCancellation(asAdmin, stripe, booking);
+  expect(tables.reservations[0].lang).toBe("ja");
+  expect(tables.reservation_cancellations[0].lang).toBe("ja");
+  const payload = JSON.parse(sends.mock.calls[0][1]!.body as string);
+  expect(payload.subject).toContain("ご予約をキャンセルしました");
+});
+
+test("legacy booking without Stripe language uses current browser language", async () => {
+  const { booking, stripe, checkoutSession } = cancellationFixture();
+  checkoutSession.metadata.lang = undefined;
+  await requestCancellation(asAdmin, stripe, booking, "ja");
+  expect(tables.reservations[0].lang).toBe("ja");
+  expect(tables.reservation_cancellations[0].lang).toBe("ja");
+});
+
+test("payment confirmation prefers database language and persists language for legacy pending bookings", async () => {
+  tables.reservations[0].lang = "en";
+  expect((await deliver()).status).toBe(200); // Stripe metadata says Japanese.
+  let payload = JSON.parse(sends.mock.calls[0][1]!.body as string);
+  expect(payload.subject).toContain("Your reservation is confirmed");
+  tables.reservations = [{ ...reservation, lang: null }];
+  tables.reservation_confirmation_emails = [];
+  expect((await deliver()).status).toBe(200);
+  expect(tables.reservations[0].lang).toBe("ja");
+  payload = JSON.parse(sends.mock.calls[1][1]!.body as string);
+  expect(payload.subject).toContain("ご予約が確定しました");
+});
+
+test("unsupported and automatic locale values do not override explicit language", () => {
+  expect(reservationLanguage(null, "auto", "ja")).toBe("ja");
+  expect(reservationLanguage("en", "ja")).toBe("en");
+  expect(reservationLanguage(null, "fr", undefined)).toBe("en");
 });

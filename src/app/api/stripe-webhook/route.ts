@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { sendReservationConfirmation } from "@/lib/server/reservationEmail";
 import { applyCancellationRefund } from "@/lib/server/cancellation";
+import { reservationLanguage } from "@/lib/reservations/language";
 
 /**
  * POST /api/stripe-webhook
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ received: true });
         }
         const { data: reservation, error: readError } = await admin.from("reservations")
-          .select("id, name, email, check_in, check_out, guests, total_yen, status, stripe_session_id")
+          .select("id, name, email, check_in, check_out, guests, total_yen, status, stripe_session_id, lang")
           .eq("id", reservationId).single();
         if (readError || !reservation) return NextResponse.json({ error: "db error" }, { status: 500 });
         if (session.currency !== "jpy" || session.amount_total !== reservation.total_yen ||
@@ -73,7 +74,8 @@ export async function POST(req: Request) {
         if (reservation.status === "cancelled") return NextResponse.json({ received: true });
         const { error } = await admin
           .from("reservations")
-          .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id })
+          .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id,
+            lang: reservationLanguage(reservation.lang, session.metadata?.lang, session.locale) })
           .eq("id", reservationId)
           .eq("status", "pending");
         if (error) {
@@ -84,13 +86,13 @@ export async function POST(req: Request) {
         // Re-read on every delivery, including retries after email failure.
         // A cancelled reservation must never be revived by a repeated event.
         const { data: confirmed, error: confirmReadError } = await admin.from("reservations")
-          .select("id, name, email, check_in, check_out, guests, total_yen")
+          .select("id, name, email, check_in, check_out, guests, total_yen, lang")
           .eq("id", reservationId).eq("status", "confirmed")
           .eq("stripe_session_id", session.id).not("paid_at", "is", null).maybeSingle();
         if (confirmReadError) return NextResponse.json({ error: "db error" }, { status: 500 });
         if (confirmed) {
           try {
-            await sendReservationConfirmation(admin, confirmed, session.metadata?.lang === "ja" ? "ja" : "en");
+            await sendReservationConfirmation(admin, confirmed, reservationLanguage(confirmed.lang, session.metadata?.lang, session.locale));
           } catch (error) {
             console.error("confirmation email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
             // Payment stays confirmed. Stripe retries this webhook, including the email.

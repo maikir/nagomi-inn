@@ -6,6 +6,7 @@ import { getSupabaseAdmin, getSupabaseAsUser } from "@/lib/server/supabaseAdmin"
 import { syncExternalCalendars } from "@/lib/server/icalSync";
 import { getEffectivePricing } from "@/lib/server/pricing";
 import { computeBreakdown } from "@/lib/pricing";
+import { reservationLanguage } from "@/lib/reservations/language";
 
 /**
  * POST /api/checkout
@@ -48,6 +49,7 @@ export async function POST(req: Request) {
   // ── validate ──────────────────────────────────────────────────────────────
   const body = (await req.json().catch(() => ({}))) as Body;
   const { checkIn, checkOut, guests, name, email } = body;
+  const lang = reservationLanguage(body.lang);
   // Pricing comes from the DB (owner-editable), not the client — authoritative.
   const p = await getEffectivePricing();
   const today = new Date().toISOString().slice(0, 10);
@@ -86,6 +88,7 @@ export async function POST(req: Request) {
       notes: body.notes?.trim() || null,
       total_yen: total,
       status: "pending",
+      lang,
     })
     .select()
     .single();
@@ -99,7 +102,7 @@ export async function POST(req: Request) {
   // ── Stripe Checkout session ───────────────────────────────────────────────
   const stripe = new Stripe(stripeKey);
   const origin = req.headers.get("origin") ?? site.url;
-  const ja = body.lang === "ja";
+  const ja = lang === "ja";
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -121,7 +124,7 @@ export async function POST(req: Request) {
           },
         },
       ],
-      metadata: { reservation_id: reservation.id, user_id: user.id, lang: ja ? "ja" : "en" },
+      metadata: { reservation_id: reservation.id, user_id: user.id, lang },
       // Unpaid sessions expire and the webhook frees the held dates.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       success_url: `${origin}/reserve/success?rid=${reservation.id}`,

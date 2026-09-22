@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await requestCancellation(admin, new Stripe(stripeKey), reservation, lang === "ja" ? "ja" : "en");
+    const result = await requestCancellation(admin, new Stripe(stripeKey), reservation, lang);
     return NextResponse.json(result, { status: result.refundFailed ? 409 : result.pending ? 202 : 200 });
   } catch (error) {
     console.error("cancellation failed:", id, error instanceof Error ? error.message : "unknown error");
