@@ -14,6 +14,38 @@ export type PaidReservation = {
 
 type EmailConfig = { from: string; replyTo: string; address: string };
 
+// Dotenv removes wrapper quotes; hosting dashboards can store them literally.
+function emailSetting(value: string | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) return trimmed;
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+/** Classify errors without copying provider messages that may contain guest data. */
+export async function resendFailure(response: Response): Promise<Error> {
+  const details: unknown = await response.json().catch(() => null);
+  const knownNames = new Set([
+    "validation_error", "invalid_parameter", "missing_required_field", "missing_required_parameter",
+    "missing_api_key", "restricted_api_key", "invalid_permission", "suspended_api_key",
+    "invalid_idempotency_key", "invalid_idempotent_request", "concurrent_idempotent_requests",
+    "daily_quota_exceeded", "monthly_quota_exceeded", "rate_limit_exceeded",
+    "application_error", "service_unavailable",
+  ]);
+  const error = details && typeof details === "object" ? details as Record<string, unknown> : {};
+  const name = typeof error.name === "string" && knownNames.has(error.name) ? error.name : "unknown_error";
+  const message = typeof error.message === "string" ? error.message : "";
+  const fields = ["from", "to", "reply_to", "subject", "html", "text"]
+    .filter(field => new RegExp(`(?:\\x60|["'])${field}(?:\\x60|["'])`, "i").test(message));
+  const hint = fields.includes("from")
+    ? " Check RESERVATION_EMAIL_FROM formatting; Vercel values must not include dotenv wrapper quotes."
+    : " Check the failed POST /emails response in Resend Logs for details.";
+  return new Error(`Resend confirmation request failed (${response.status}, ${name}${fields.length ? `, fields: ${fields.join(", ")}` : ""}).${hint}`);
+}
+
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]!));
@@ -51,10 +83,10 @@ export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja
 /** Called only after a signed Stripe event verifies payment and the DB confirms the stay. */
 export async function sendReservationConfirmation(admin: SupabaseClient, reservation: PaidReservation, lang: "en" | "ja") {
   if (process.env.RESERVATION_EMAILS_ENABLED !== "true") return;
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESERVATION_EMAIL_FROM;
-  const replyTo = process.env.RESERVATION_EMAIL_REPLY_TO;
-  const address = process.env.HOTEL_ADDRESS;
+  const apiKey = emailSetting(process.env.RESEND_API_KEY);
+  const from = emailSetting(process.env.RESERVATION_EMAIL_FROM);
+  const replyTo = emailSetting(process.env.RESERVATION_EMAIL_REPLY_TO);
+  const address = emailSetting(process.env.HOTEL_ADDRESS);
   if (!apiKey || !from || !replyTo || !address) throw new Error("Reservation email configuration is incomplete");
 
   // Freeze the payload: retries must use exactly the same content even after a deploy.
@@ -85,7 +117,7 @@ export async function sendReservationConfirmation(admin: SupabaseClient, reserva
     signal: AbortSignal.timeout(10_000),
   });
   // Do not log provider responses: they can contain guest details.
-  if (!response.ok) throw new Error(`Resend confirmation request failed (${response.status})`);
+  if (!response.ok) throw await resendFailure(response);
   const result = await response.json() as { id?: string };
   if (!result.id) throw new Error("Resend did not return an email ID");
   const { error: saveError } = await admin.from("reservation_confirmation_emails")

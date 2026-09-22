@@ -32,6 +32,12 @@ are ignored by Git. The email sender is
 `nagomi.inn.miyazaki@gmail.com`. A Resend key and the email database migration
 are still required before enabling sending.
 
+Quotes around values are appropriate in `.env` files. When entering a value
+directly in Vercel, omit those outer quotes: enter
+`Nagomi Inn <reservations@nagomi-inn-miyazaki.com>` as the sender value.
+The email code also strips accidental outer quotes from new email settings.
+Already queued payloads remain unchanged to preserve safe retries.
+
 ## Deploy to Vercel
 
 1. Push this folder to a GitHub repo (`git init && git add -A && git commit -m "init"`).

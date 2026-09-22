@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, expect, mock, test } from "bun:test";
 import Stripe from "stripe";
-import { confirmationEmail } from "../src/lib/server/reservationEmail";
+import { confirmationEmail, resendFailure } from "../src/lib/server/reservationEmail";
 
 // In-memory DB and HTTP transport: no real bookings, payments, or emails.
 type Row = Record<string, unknown>;
@@ -37,6 +37,22 @@ const admin = {
 };
 mock.module("../src/lib/server/supabaseAdmin", () => ({ getSupabaseAdmin: () => admin }));
 const { POST } = await import("../src/app/api/stripe-webhook/route");
+
+test("Resend errors identify invalid sender without logging private response content", async () => {
+  const error = await resendFailure(Response.json({ name: "invalid_parameter", message: 'Invalid `from` field: private@example.com' }, { status: 422 }));
+  expect(error.message).toContain("422, invalid_parameter, fields: from");
+  expect(error.message).toContain("dotenv wrapper quotes");
+  expect(error.message).not.toContain("private@example.com");
+});
+test("unexpected provider errors cannot leak arbitrary response fields", async () => {
+  const error = await resendFailure(Response.json({ name: "private@example.com", message: "Guest details" }, { status: 422 }));
+  expect(error.message).toContain("unknown_error");
+  expect(error.message).not.toContain("private@example.com");
+  expect(error.message).not.toContain("Guest details");
+});
+test("non-JSON provider errors preserve the HTTP failure", async () => {
+  expect((await resendFailure(new Response("upstream error", { status: 502 }))).message).toContain("502, unknown_error");
+});
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
 const sends = mock(async (_input: unknown, _init?: RequestInit) => Response.json({ id: "email_test" }));
@@ -86,6 +102,17 @@ test("unsigned requests never confirm or send", async () => {
   expect((await deliver(undefined, {}, false)).status).toBe(400);
   expect(tables.reservations[0].status).toBe("pending");
   expect(sends).not.toHaveBeenCalled();
+});
+test("dashboard wrapper quotes are removed before freezing a new email", async () => {
+  process.env.RESERVATION_EMAIL_FROM = ' "Nagomi Inn <bookings@example.com>" ';
+  process.env.RESERVATION_EMAIL_REPLY_TO = '"reply@example.com"';
+  process.env.HOTEL_ADDRESS = '"宮崎県 / Miyazaki"';
+  expect((await deliver()).status).toBe(200);
+  const payload = JSON.parse(sends.mock.calls[0][1]!.body as string);
+  expect(payload.from).toBe("Nagomi Inn <bookings@example.com>");
+  expect(payload.reply_to).toBe("reply@example.com");
+  expect(payload.text).toContain("住所: 宮崎県 / Miyazaki");
+  expect(payload.html).not.toContain("&quot;");
 });
 test("unpaid completion waits for async payment success", async () => {
   expect((await deliver(undefined, { payment_status: "unpaid" })).status).toBe(200);
