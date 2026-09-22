@@ -2,13 +2,15 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { sendReservationConfirmation } from "@/lib/server/reservationEmail";
+import { applyCancellationRefund } from "@/lib/server/cancellation";
 
 /**
  * POST /api/stripe-webhook
  * Stripe → us. Confirms reservations on payment; frees held dates when a
  * checkout session expires unpaid. Configure the endpoint in the Stripe
  * dashboard (events: checkout.session.completed, checkout.session.expired,
- * checkout.session.async_payment_succeeded, checkout.session.async_payment_failed)
+ * checkout.session.async_payment_succeeded, checkout.session.async_payment_failed,
+ * refund.created, refund.updated, refund.failed)
  * and put its signing secret in STRIPE_WEBHOOK_SECRET.
  */
 
@@ -31,6 +33,21 @@ export async function POST(req: Request) {
     event = await stripe.webhooks.constructEventAsync(await req.text(), signature, webhookSecret);
   } catch {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
+  }
+
+  if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
+    const refundEvent = event.data.object as Stripe.Refund;
+    if (!refundEvent.metadata?.cancellation_reservation_id) return NextResponse.json({ received: true });
+    try {
+      // Events can arrive out of order: always reconcile the latest Stripe state.
+      const refund = await new Stripe(stripeKey).refunds.retrieve(refundEvent.id);
+      const result = await applyCancellationRefund(admin, refund);
+      if (result?.emailPending) return NextResponse.json({ error: "cancellation email failed" }, { status: 500 });
+    } catch (error) {
+      console.error("refund webhook failed:", refundEvent.id, error instanceof Error ? error.message : "unknown error");
+      return NextResponse.json({ error: "refund reconciliation failed" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
   }
 
   const paymentEvent = event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded";

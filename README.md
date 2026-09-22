@@ -139,7 +139,7 @@ keeps this dependency-free. React Email is optional for more elaborate designs.
      clearly marked temporary text; replace it with the real address when ready.
    - `RESERVATION_EMAILS_ENABLED=true`: enable only after the settings and migration
      are ready. Unset or `false` preserves the existing flow without emails.
-4. Subscribe the Stripe endpoint to all four events listed above and redeploy.
+4. Subscribe the Stripe endpoint to all four Checkout events listed above and redeploy.
 5. Complete a Stripe **test-mode** checkout using an inbox you control. Check the
    email, the confirmed reservation, and Resend's delivery log. Resend's testing
    sender (`onboarding@resend.dev`) only permits delivery to your account email;
@@ -175,12 +175,58 @@ are not automatically backfilled. A cancelled booking is skipped on replay.
 Run `bun run test:email` for isolated webhook/template tests. Tests mock database
 and email transport, verify real Stripe signatures, and never send actual emails.
 
-**Cancellations & refunds:** in-app cancellation goes through `/api/cancel`, which
-refunds the Stripe payment in full when the guest cancels at least
-`site.cancellation.fullRefundUntilDaysBefore` days before check-in (default 7 —
-edit in `src/config/site.ts`), and releases the dates either way. Refund-eligible
-cancellations only complete if the refund succeeds. Partial-refund tiers or
-owner-initiated cancellations: use the Stripe dashboard.
+## Cancellation emails and refund completion
+
+Before deploying this version, run `supabase/cancellation-emails.sql` after the
+existing payment and email migrations. Add **`refund.created`, `refund.updated`,
+and `refund.failed`** to the existing Stripe webhook endpoint in each environment.
+Keep all four Checkout events enabled. The same Resend environment settings are
+used for both booking and cancellation emails; no new email keys are needed.
+
+`/api/cancel` authenticates the guest and freezes the cancellation amount using
+the existing JST policy: 100%, 50%, or 0% refund. Its durable request and Stripe
+idempotency key prevent repeated clicks from issuing another refund or changing
+the refund tier. Only confirmed, paid direct reservations use this flow.
+
+- A zero-refund cancellation completes immediately, releasing the dates and
+  emailing the guest that no refund is due.
+- A refund-bearing cancellation completes only when Stripe reports the refund
+  as `succeeded`, either in its API response or through a signed refund webhook.
+  Creating a refund with `pending` or `requires_action` status is not completion.
+  The reservation stays confirmed and its dates stay reserved while processing.
+- The guest page shows processing status and refreshes every five seconds while
+  a cancellation is underway. Failed/canceled refunds require owner assistance;
+  the system does not automatically issue a second refund.
+- Refund webhooks retrieve the latest refund state to handle out-of-order events.
+  Refund ID, payment intent, amount, and currency must match the saved request.
+  A bank failure after completion is flagged without reviving the reservation.
+
+Completion atomically marks the reservation cancelled and records completion.
+The English/Japanese email includes stay details, refund amount, cancellation fee,
+and contact details. A successful refund means Stripe processed it; the email
+does not promise that it has already appeared on the guest's bank statement.
+Email failures never undo cancellations. The separate private cancellation email
+table deduplicates sends, and failed webhook deliveries retry the email.
+
+For no-refund cancellations (which have no Stripe refund event) and interrupted
+requests, `/api/cancellation-retry` provides a daily safety net through Vercel Cron.
+It uses the existing `CRON_SECRET` via `Authorization: Bearer <CRON_SECRET>` and
+can also be called manually. Vercel Cron runs on production deployments; trigger
+this endpoint manually on staging when testing recovery. Investigate any failed
+run: ambiguous refund or email attempts older than 23 hours require manual review
+because provider idempotency protection is time-limited. After checking Stripe or
+Resend, reconcile the corresponding private row before retrying. Never clear an
+ambiguous attempt or create another refund without checking the provider first.
+
+The migration also removes browser permission to directly change reservation
+status, so paid bookings cannot bypass the cancellation API. Demo reservations
+in localStorage are unaffected. Apply this migration only to payment-enabled
+installations. Refunds issued manually in the Stripe dashboard do not by
+themselves cancel a stay; that requires separate owner handling.
+
+Test a new paid reservation, cancel it, and check the cancellation message,
+Stripe refund status, and email. `bun run test:email` includes full/partial/zero
+refunds, pending and failed refunds, duplicate attempts, and email retry cases.
 
 ## Airbnb / Booking.com calendar sync (iCal)
 

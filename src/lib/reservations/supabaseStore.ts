@@ -20,7 +20,8 @@ type Row = {
   phone: string | null;
   notes: string | null;
   total_yen: number;
-  status: "confirmed" | "cancelled";
+  status: "pending" | "confirmed" | "cancelled";
+  cancellation_state?: "processing" | "failed" | "completed" | null;
   created_at: string;
 };
 
@@ -36,6 +37,7 @@ function toReservation(row: Row): Reservation {
     notes: row.notes ?? undefined,
     totalYen: row.total_yen,
     status: row.status,
+    cancellationState: row.cancellation_state ?? undefined,
     createdAt: row.created_at,
   };
 }

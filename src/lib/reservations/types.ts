@@ -13,6 +13,7 @@ export interface Reservation {
   notes?: string;
   totalYen: number;
   status: ReservationStatus;
+  cancellationState?: "processing" | "failed" | "completed";
   createdAt: string; // ISO datetime
 }
 

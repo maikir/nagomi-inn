@@ -37,9 +37,16 @@ in order:
 > constraints/policies. Proving it on staging first is the whole point.
 
 ### 3. Stripe — a webhook per environment
+For cancellation emails, first apply `supabase/cancellation-emails.sql` (after
+the existing payment and reservation email migrations). Enable `refund.created`,
+`refund.updated`, and `refund.failed` on the endpoint, in addition to the Checkout
+events. Pending refunds keep the reservation active until Stripe reports success.
+
 In **Test mode**, create a webhook (Developers → Webhooks → Add endpoint):
 - URL: `https://test.nagomi-inn-miyazaki.com/api/stripe-webhook`
-- Events: `checkout.session.completed`, `checkout.session.expired`
+- Events: `checkout.session.completed`, `checkout.session.expired`,
+  `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+  `refund.created`, `refund.updated`, `refund.failed`
 - Its signing secret (`whsec_…`) is the **Preview** `STRIPE_WEBHOOK_SECRET`.
 
 Production gets its own separate webhook (live mode) later.

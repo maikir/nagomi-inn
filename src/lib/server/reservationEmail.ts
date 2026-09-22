@@ -50,9 +50,11 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]!));
 
-export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja", config: EmailConfig) {
+export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja", config: EmailConfig, cancellation?: { refundYen: number }) {
   const ja = lang === "ja";
-  const title = ja ? "ご予約が確定しました" : "Your reservation is confirmed";
+  const title = cancellation
+    ? (ja ? "ご予約をキャンセルしました" : "Your reservation has been cancelled")
+    : (ja ? "ご予約が確定しました" : "Your reservation is confirmed");
   const rows = [
     [ja ? "予約番号" : "Confirmation number", reservation.id],
     [ja ? "宿泊施設" : "Property", `${site.tagline} / ${site.fullName}`],
@@ -65,8 +67,14 @@ export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja
     [ja ? "お問い合わせ" : "Contact", config.replyTo],
     [ja ? "電話" : "Phone", site.contact.phone],
   ];
+  if (cancellation) rows.splice(8, 0,
+    [ja ? "返金額" : "Refund amount", `${formatYen(cancellation.refundYen)} JPY`],
+    [ja ? "キャンセル料" : "Cancellation fee", `${formatYen(reservation.total_yen - cancellation.refundYen)} JPY`],
+  );
   const greeting = ja ? `${reservation.name} 様` : `Hello ${reservation.name},`;
-  const message = ja
+  const message = cancellation ? (cancellation.refundYen > 0
+    ? (ja ? "ご予約のキャンセルと返金処理が完了しました。返金は元のお支払い方法に戻ります。明細への反映時期は金融機関により異なります。" : "Your reservation is cancelled and the refund has been processed to your original payment method. The time it takes to appear on your statement depends on your bank.")
+    : (ja ? "ご予約をキャンセルしました。キャンセルポリシーに基づき、返金はございません。" : "Your reservation is cancelled. No refund is due under the cancellation policy.")) : ja
     ? "お支払いを確認し、ご予約が確定しました。和でお迎えできることを楽しみにしております。"
     : "Your payment has been received and your stay is confirmed. We look forward to welcoming you to Nagomi.";
   const footer = ja ? "ご質問はこのメールにご返信ください。" : "Please reply to this email if you have any questions.";
@@ -82,20 +90,30 @@ export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja
 
 /** Called only after a signed Stripe event verifies payment and the DB confirms the stay. */
 export async function sendReservationConfirmation(admin: SupabaseClient, reservation: PaidReservation, lang: "en" | "ja") {
+  return sendReservationEmail(admin, reservation, lang);
+}
+
+export async function sendCancellationConfirmation(admin: SupabaseClient, reservation: PaidReservation, lang: "en" | "ja", refundYen: number) {
+  return sendReservationEmail(admin, reservation, lang, { refundYen });
+}
+
+async function sendReservationEmail(admin: SupabaseClient, reservation: PaidReservation, lang: "en" | "ja", cancellation?: { refundYen: number }) {
   if (process.env.RESERVATION_EMAILS_ENABLED !== "true") return;
   const apiKey = emailSetting(process.env.RESEND_API_KEY);
   const from = emailSetting(process.env.RESERVATION_EMAIL_FROM);
   const replyTo = emailSetting(process.env.RESERVATION_EMAIL_REPLY_TO);
   const address = emailSetting(process.env.HOTEL_ADDRESS);
   if (!apiKey || !from || !replyTo || !address) throw new Error("Reservation email configuration is incomplete");
+  const table = cancellation ? "reservation_cancellation_emails" : "reservation_confirmation_emails";
+  const eventName = cancellation ? "reservation-cancelled" : "reservation-confirmed";
 
   // Freeze the payload: retries must use exactly the same content even after a deploy.
-  const { error: insertError } = await admin.from("reservation_confirmation_emails").upsert({
+  const { error: insertError } = await admin.from(table).upsert({
     reservation_id: reservation.id,
-    payload: confirmationEmail(reservation, lang, { from, replyTo, address }),
+    payload: confirmationEmail(reservation, lang, { from, replyTo, address }, cancellation),
   }, { onConflict: "reservation_id", ignoreDuplicates: true });
   if (insertError) throw new Error("Could not queue confirmation email");
-  const { data: email, error: readError } = await admin.from("reservation_confirmation_emails")
+  const { data: email, error: readError } = await admin.from(table)
     .select("payload, sent_at, first_attempt_at").eq("reservation_id", reservation.id).single();
   if (readError || !email) throw new Error("Could not read confirmation email");
   if (email.sent_at) return;
@@ -105,14 +123,14 @@ export async function sendReservationConfirmation(admin: SupabaseClient, reserva
   if (email.first_attempt_at && Date.now() - Date.parse(email.first_attempt_at) >= 23 * 60 * 60 * 1000) {
     throw new Error("Confirmation email needs review in Resend before retrying (idempotency window)");
   }
-  const { error: attemptError } = await admin.from("reservation_confirmation_emails")
+  const { error: attemptError } = await admin.from(table)
     .update({ first_attempt_at: new Date().toISOString() })
     .eq("reservation_id", reservation.id).is("first_attempt_at", null);
   if (attemptError) throw new Error("Could not record email attempt");
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `reservation-confirmed/${reservation.id}` },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": `${eventName}/${reservation.id}` },
     body: JSON.stringify(email.payload),
     signal: AbortSignal.timeout(10_000),
   });
@@ -120,7 +138,7 @@ export async function sendReservationConfirmation(admin: SupabaseClient, reserva
   if (!response.ok) throw await resendFailure(response);
   const result = await response.json() as { id?: string };
   if (!result.id) throw new Error("Resend did not return an email ID");
-  const { error: saveError } = await admin.from("reservation_confirmation_emails")
+  const { error: saveError } = await admin.from(table)
     .update({ sent_at: new Date().toISOString(), resend_email_id: result.id })
     .eq("reservation_id", reservation.id);
   if (saveError) throw new Error("Could not record accepted confirmation email");
