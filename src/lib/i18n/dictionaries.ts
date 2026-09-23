@@ -368,7 +368,7 @@ export const ja: typeof en = {
 
   cta: {
     heading1: "田園と星空。",
-    heading2: "BBQとサウナ。大人だって全力で遊んでもいいじゃん。",
+    heading2: "BBQとサウナ。\n大人だって全力で遊んでもいいじゃん。",
     body: "こだわりの空間で大切な人たちと、心癒されるひとときを。",
     button: "空室を確認して予約",
   },

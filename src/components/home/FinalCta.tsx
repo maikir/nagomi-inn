@@ -22,7 +22,7 @@ export function FinalCta() {
         {/* Cinematic dark grade (graded gradient + vignette), not a flat scrim. */}
         <div className="cta-grad absolute inset-0" />
         <Reveal className="relative z-10 mx-auto max-w-3xl px-5 text-center [text-shadow:0_2px_14px_rgba(0,0,0,0.4)]">
-          <h2 className={`font-display text-paper-bright ${lang === "en" ? "whitespace-pre-line text-3xl leading-[1.45] md:text-5xl md:leading-[1.45]" : "text-4xl leading-tight md:text-6xl"}`}>
+          <h2 className={`whitespace-pre-line font-display text-paper-bright ${lang === "en" ? "text-3xl leading-[1.45] md:text-5xl md:leading-[1.45]" : "text-4xl leading-tight md:text-6xl"}`}>
             {t.cta.heading1}
             <br />
             {t.cta.heading2}
