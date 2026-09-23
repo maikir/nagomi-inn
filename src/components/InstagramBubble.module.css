@@ -33,10 +33,10 @@
   .bubble[data-draw="waiting"] .caption { opacity: 0; }
   .bubble[data-draw="visible"] .stroke {
     stroke-dasharray: 1;
-    animation: draw 2.2s cubic-bezier(0.4, 0, 0.25, 1) both;
+    animation: draw 1.8s cubic-bezier(0.4, 0, 0.25, 1) both;
   }
   .bubble[data-draw="visible"] .caption {
-    animation: appear 550ms ease-out 1.2s both;
+    animation: appear 450ms ease-out 950ms both;
   }
 }
 
