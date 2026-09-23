@@ -7,6 +7,7 @@ import { syncExternalCalendars } from "@/lib/server/icalSync";
 import { getEffectivePricing } from "@/lib/server/pricing";
 import { computeBreakdown } from "@/lib/pricing";
 import { reservationLanguage } from "@/lib/reservations/language";
+import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 
 /**
  * POST /api/checkout
@@ -57,7 +58,7 @@ export async function POST(req: Request) {
     !checkIn || !checkOut || !ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut) ||
     checkOut <= checkIn || checkIn < today ||
     !guests || !Number.isInteger(guests) || guests < p.minGuests || guests > p.maxGuests ||
-    !name?.trim() || !email?.trim()
+    !validGuestName(name) || !validGuestEmail(email) || !validGuestPhone(body.phone)
   ) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
   }
@@ -84,7 +85,7 @@ export async function POST(req: Request) {
       guests,
       name: name.trim(),
       email: email.trim(),
-      phone: body.phone?.trim() || null,
+      phone: body.phone ? normalizeGuestPhone(body.phone) || null : null,
       notes: body.notes?.trim() || null,
       total_yen: total,
       status: "pending",

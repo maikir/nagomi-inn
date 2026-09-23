@@ -59,8 +59,8 @@ export function Sauna() {
           <div className="grid grid-cols-2 gap-3">
             <Reveal delay={100} className="relative aspect-[3/4] overflow-hidden">
               <Image
-                src="/images/sauna-interior-view.jpg"
-                alt="Inside the barrel sauna, looking out at the rice fields"
+                src="/images/sauna-interior-heater.jpg"
+                alt="Inside the cedar barrel sauna, with the heater"
                 fill
                 sizes="(min-width: 1024px) 25vw, 50vw"
                 className="object-cover transition-transform duration-700 hover:scale-105"
@@ -68,8 +68,8 @@ export function Sauna() {
             </Reveal>
             <Reveal delay={220} className="relative mt-10 aspect-[3/4] overflow-hidden">
               <Image
-                src="/images/sauna-barrel.jpg"
-                alt="The cedar barrel sauna beside the charred-black wall"
+                src="/images/sauna-plunge-terrace.jpg"
+                alt="The outdoor terrace with galvanized cold-plunge tubs under an open sky, facing the rice fields"
                 fill
                 sizes="(min-width: 1024px) 25vw, 50vw"
                 className="object-cover transition-transform duration-700 hover:scale-105"

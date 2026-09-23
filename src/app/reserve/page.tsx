@@ -10,6 +10,7 @@ import { site, formatYen } from "@/config/site";
 import { defaultPricing, computeBreakdown, type Pricing } from "@/lib/pricing";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import { LogoMark } from "@/components/LogoMark";
+import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 import {
   getReservationStore,
   nightsBetween,
@@ -52,6 +53,7 @@ export default function ReservePage() {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<Message | null>(null);
+  const [detailsAttempted, setDetailsAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
   // Saving is disabled until restoration has committed — the flag is set in the
@@ -119,14 +121,30 @@ export default function ReservePage() {
   const nightsLabel = fill(nights === 1 ? t.reserve.nights_one : t.reserve.nights_other, { n: nights });
   const guestsLabel = fill(guests === 1 ? t.reserve.guest_one : t.reserve.guest_other, { n: guests });
 
+  function validateDetails() {
+    setDetailsAttempted(true);
+    if (!validGuestName(name)) {
+      setError({ key: "reserve.errorName" });
+      return false;
+    }
+    if (!validGuestEmail(email)) {
+      setError({ key: "reserve.errorEmail" });
+      return false;
+    }
+    if (!validGuestPhone(phone)) {
+      setError({ key: "reserve.errorPhone" });
+      return false;
+    }
+    return true;
+  }
+
   function next() {
     setError(null);
     if (step === "dates") {
       if (!checkIn || !checkOut || nights < p.minNights) return setError({ key: "reserve.errorDates" });
       setStep("details");
     } else if (step === "details") {
-      if (!name.trim()) return setError({ key: "reserve.errorName" });
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError({ key: "reserve.errorEmail" });
+      if (!validateDetails()) return;
       setStep("confirm");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -140,6 +158,7 @@ export default function ReservePage() {
 
   async function submit() {
     if (!checkIn || !checkOut) return;
+    if (!validateDetails()) { setStep("details"); return; }
     // Reserving requires an account when Supabase is connected. The draft is
     // already in sessionStorage, so nothing is lost across the redirect.
     if (authEnabled && !user) {
@@ -170,7 +189,7 @@ export default function ReservePage() {
             guests,
             name: name.trim(),
             email: email.trim(),
-            phone: phone.trim() || undefined,
+            phone: normalizeGuestPhone(phone) || undefined,
             notes: notes.trim() || undefined,
             lang,
           }),
@@ -206,7 +225,7 @@ export default function ReservePage() {
         guests,
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim() || undefined,
+        phone: normalizeGuestPhone(phone) || undefined,
         notes: notes.trim() || undefined,
         totalYen: total,
       });
@@ -336,9 +355,9 @@ export default function ReservePage() {
           <div>
             <h2 className="font-display text-2xl">{t.reserve.yourDetails}</h2>
             <div className="mt-8 space-y-6">
-              <Field label={t.reserve.name} value={name} onChange={setName} type="text" required />
-              <Field label={t.reserve.email} value={email} onChange={setEmail} type="email" required />
-              <Field label={t.reserve.phone} value={phone} onChange={setPhone} type="tel" />
+              <Field id="guest-name" label={t.reserve.name} value={name} onChange={setName} type="text" autoComplete="name" maxLength={100} required attempted={detailsAttempted} error={validGuestName(name) ? undefined : t.reserve.errorName} />
+              <Field id="guest-email" label={t.reserve.email} value={email} onChange={setEmail} type="email" autoComplete="email" maxLength={254} required attempted={detailsAttempted} error={validGuestEmail(email) ? undefined : t.reserve.errorEmail} />
+              <Field id="guest-phone" label={t.reserve.phone} value={phone} onChange={setPhone} type="tel" autoComplete="tel" maxLength={40} attempted={detailsAttempted} error={validGuestPhone(phone) ? undefined : t.reserve.errorPhone} hint={t.reserve.phoneHint} />
               <div>
                 <label className="block text-xs tracking-[0.2em] text-paper-faint">
                   {t.reserve.notes.toUpperCase()}
@@ -473,29 +492,53 @@ export default function ReservePage() {
 /* ── helpers ────────────────────────────────────────────────────────────── */
 
 function Field({
+  id,
   label,
   value,
   onChange,
   type,
   required,
+  autoComplete,
+  maxLength,
+  error,
+  hint,
+  attempted,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   type: string;
   required?: boolean;
+  autoComplete?: string;
+  maxLength?: number;
+  error?: string;
+  hint?: string;
+  attempted?: boolean;
 }) {
+  const [touched, setTouched] = useState(false);
+  const visibleError = (touched || attempted) ? error : undefined;
   return (
     <label className="block text-xs tracking-[0.2em] text-paper-faint">
       {label.toUpperCase()}
       {required && <span className="text-copper-bright"> *</span>}
       <input
+        id={id}
+        name={autoComplete}
         type={type}
+        inputMode={type === "tel" ? "tel" : type === "email" ? "email" : "text"}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        onBlur={() => setTouched(true)}
+        aria-invalid={Boolean(visibleError)}
+        aria-describedby={visibleError ? `${id}-error` : hint ? `${id}-hint` : undefined}
         className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
       />
+      {visibleError ? <span id={`${id}-error`} role="alert" className="mt-2 block text-xs tracking-normal text-copper-bright">{visibleError}</span>
+        : hint ? <span id={`${id}-hint`} className="mt-2 block text-xs tracking-normal text-paper-faint">{hint}</span> : null}
     </label>
   );
 }

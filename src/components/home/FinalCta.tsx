@@ -6,22 +6,23 @@ import { useLang } from "@/lib/i18n/LanguageProvider";
 import { Reveal } from "@/components/Reveal";
 
 export function FinalCta() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   return (
     <section className="over-photo relative overflow-hidden">
       <div className="relative flex min-h-[70svh] items-center justify-center">
         <Image
-          src="/images/kitchen-island-view.jpg"
-          alt="The kitchen island looking out to the garden at dusk"
+          src="/images/countryside-rainbow-hires.jpg"
+          alt="A rainbow above green rice fields in the Miyazaki countryside"
           fill
-          sizes="100vw"
-          className="object-cover"
+          quality={90}
+          sizes="max(100vw, 94svh)"
+          className="object-cover object-bottom"
         />
         {/* Cinematic dark grade (graded gradient + vignette), not a flat scrim. */}
         <div className="cta-grad absolute inset-0" />
         <Reveal className="relative z-10 mx-auto max-w-3xl px-5 text-center [text-shadow:0_2px_14px_rgba(0,0,0,0.4)]">
-          <h2 className="font-display text-4xl leading-tight text-paper-bright md:text-6xl">
+          <h2 className={`font-display text-paper-bright ${lang === "en" ? "whitespace-pre-line text-3xl leading-[1.45] md:text-5xl md:leading-[1.45]" : "text-4xl leading-tight md:text-6xl"}`}>
             {t.cta.heading1}
             <br />
             {t.cta.heading2}

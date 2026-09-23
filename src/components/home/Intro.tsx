@@ -44,26 +44,28 @@ export function Intro() {
         <div className="relative grid grid-cols-12 grid-rows-6 gap-3 min-h-[480px] lg:min-h-[560px]">
           <Reveal className="relative col-span-8 row-span-6 overflow-hidden">
             <Image
-              src="/images/entry-genkan.jpg"
-              alt="Hand-crafted cedar lattice doors at the entrance"
+              src="/images/handcrafted-dining-room-hires.jpg"
+              alt="A round dining table beneath exposed timber beams, beside the fireplace and handcrafted kitchen"
               fill
-              sizes="(min-width: 1024px) 40vw, 60vw"
+              quality={90}
+              sizes="(min-width: 1024px) max(40vw, 840px), max(60vw, 720px)"
               className="object-cover transition-transform duration-700 hover:scale-105"
             />
           </Reveal>
           <Reveal delay={150} className="relative col-span-4 row-span-3 overflow-hidden">
             <Image
-              src="/images/nagomi-sign.jpg"
+              src="/images/nagomi-sign-hires.jpg"
               alt="The carved 和 NAGOMI sign on a cedar post"
               fill
-              sizes="20vw"
+              quality={90}
+              sizes="(min-width: 1024px) max(20vw, 420px), max(32vw, 360px)"
               className="object-cover transition-transform duration-700 hover:scale-105"
             />
           </Reveal>
           <Reveal delay={250} className="relative col-span-4 row-span-3 overflow-hidden">
             <Image
-              src="/images/switch-brass.jpg"
-              alt="A brass toggle light switch on charred wood"
+              src="/images/entry-genkan.jpg"
+              alt="Hand-crafted cedar lattice doors at the entrance"
               fill
               sizes="20vw"
               className="object-cover transition-transform duration-700 hover:scale-105"

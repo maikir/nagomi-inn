@@ -8,9 +8,11 @@ import { site } from "@/config/site";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountMenu } from "@/components/AccountMenu";
 import { LogoMark } from "@/components/LogoMark";
+import { useAuth } from "@/lib/auth/AuthProvider";
 
 export function Nav() {
   const { lang, setLang, t } = useLang();
+  const { isAdmin } = useAuth();
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -75,13 +77,22 @@ export function Nav() {
           </Link>
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
+          {isAdmin && <Link href="/admin" className="text-xs tracking-[0.15em] text-copper-bright hover:text-paper">{t.nav.admin}</Link>}
           <AccountMenu />
         </nav>
 
         {/* Mobile: language + theme + account + menu button */}
-        <div className="flex items-center gap-4 lg:hidden">
+        <div className="flex items-center gap-2 sm:gap-4 lg:hidden">
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
+          {isAdmin && (
+            <Link href="/admin" aria-label={t.nav.admin} title={t.nav.admin} className="grid h-8 w-8 shrink-0 place-items-center text-copper-bright hover:text-paper">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+            </Link>
+          )}
           <AccountMenu />
           <button
             aria-label="Menu"
