@@ -45,21 +45,21 @@ export function Nav() {
         solid ? "bg-sumi-950/90 backdrop-blur-md border-b border-paper/10" : "bg-transparent"
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:h-20 md:px-8">
+      <div className={`mx-auto flex h-16 max-w-7xl items-center justify-between ${isAdmin ? "px-3 sm:px-5" : "px-5"} md:h-20 md:px-8`}>
         {/* Brand */}
         <Link href="/" className="group flex items-center gap-2.5">
           <LogoMark size="sm" />
           {/* Text block centered on the mark; -mt cancels the display font's
               ascender dead-space so the visual gap above NAGOMI matches the
               gap below the tagline. */}
-          <span className="flex flex-col justify-center gap-1.5">
+          <span className="hidden flex-col justify-center gap-1.5 sm:flex">
             <span className="-mt-0.5 font-display text-lg leading-none tracking-[0.3em]">{site.name}</span>
             <span className="text-[10px] leading-none tracking-[0.25em] text-paper-dim">{site.taglineLockup}</span>
           </span>
         </Link>
 
         {/* Desktop links */}
-        <nav className="hidden items-center gap-7 lg:flex">
+        <nav className="hidden items-center gap-4 lg:flex xl:gap-7">
           {links.map((l) => (
             <Link
               key={l.href}
@@ -82,7 +82,7 @@ export function Nav() {
         </nav>
 
         {/* Mobile: language + theme + account + menu button */}
-        <div className="flex items-center gap-2 sm:gap-4 lg:hidden">
+        <div className="flex shrink-0 items-center gap-1 min-[375px]:gap-2 sm:gap-4 lg:hidden">
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
           {isAdmin && (
@@ -136,7 +136,7 @@ export function Nav() {
 
 function LangToggle({ lang, setLang }: { lang: "en" | "ja"; setLang: (l: "en" | "ja") => void }) {
   return (
-    <div className="flex items-center gap-1 text-[11px] tracking-widest" role="group" aria-label="Language">
+    <div className="flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] tracking-widest" role="group" aria-label="Language">
       <button
         onClick={() => setLang("en")}
         className={`px-1.5 py-1 transition-colors ${lang === "en" ? "text-copper-bright" : "text-paper-faint hover:text-paper-dim"}`}

@@ -12,14 +12,14 @@ export function Spaces() {
       name: t.spaces.omoyaName,
       romaji: t.spaces.omoyaRomaji,
       desc: t.spaces.omoyaDesc,
-      img: "/images/main-house-kitchen.jpg",
+      img: "/images/main-house-kitchen-hires.jpg",
       alt: "The main house kitchen island in live-edge cedar, with the dining table and garden view",
     },
     {
       name: t.spaces.hanareName,
       romaji: t.spaces.hanareRomaji,
       desc: t.spaces.hanareDesc,
-      img: "/images/annex-theater.jpg",
+      img: "/images/annex-theater-hires.jpg",
       alt: "The annex theater room with low sofas and a wall-projected mountain scene",
     },
     {
@@ -48,7 +48,8 @@ export function Spaces() {
                   src={s.img}
                   alt={s.alt}
                   fill
-                  sizes="(min-width: 768px) 33vw, 100vw"
+                  sizes={i < 2 ? "(min-width: 1280px) 750px, (min-width: 768px) 63vw, 188vw" : "(min-width: 768px) 33vw, 100vw"}
+                  quality={i < 2 ? 90 : 75}
                   className="object-cover transition-transform duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-sumi-950/70 via-transparent to-transparent opacity-50" />

@@ -15,10 +15,11 @@ export function Sauna() {
       {/* Full-bleed hero image of the sauna */}
       <div className="relative h-[70svh] min-h-[420px]">
         <Image
-          src="/images/sauna-exterior.jpg"
+          src="/images/sauna-exterior-hires.jpg"
           alt="The cedar barrel sauna and galvanized cold-plunge tubs beside the black house"
           fill
-          sizes="100vw"
+          sizes="max(100vw, 105svh, 630px)"
+          quality={90}
           className="object-cover"
         />
         <div className="photo-scrim absolute inset-0" />
@@ -59,10 +60,11 @@ export function Sauna() {
           <div className="grid grid-cols-2 gap-3">
             <Reveal delay={100} className="relative aspect-[3/4] overflow-hidden">
               <Image
-                src="/images/sauna-interior-heater.jpg"
+                src="/images/sauna-interior-heater-hires.jpg"
                 alt="Inside the cedar barrel sauna, with the heater"
                 fill
-                sizes="(min-width: 1024px) 25vw, 50vw"
+                sizes="(min-width: 1280px) 540px, (min-width: 1024px) 45vw, 100vw"
+                quality={90}
                 className="object-cover transition-transform duration-700 hover:scale-105"
               />
             </Reveal>
