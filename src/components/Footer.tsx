@@ -12,7 +12,7 @@ export function Footer() {
   return (
     <footer className="border-t border-paper/10 bg-sumi-950">
       <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
-        <div className="grid gap-12 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-[2fr_1fr_minmax(280px,1fr)]">
           <div>
             <div className="flex items-center gap-2.5">
               <LogoMark size="md" />
@@ -92,9 +92,9 @@ export function Footer() {
               href={`https://instagram.com/${site.contact.instagram}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="group mt-7 hidden w-fit max-w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:block"
+              className="group mt-7 hidden w-fit max-w-full items-start gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:flex"
             >
-              <span className="block w-fit rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
+              <span className="block w-fit shrink-0 rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
                 <span className="block rounded-[13px] bg-white p-2.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/images/instagram-qr.svg" alt={t.footer.instagramQr} className="h-24 w-24" />
