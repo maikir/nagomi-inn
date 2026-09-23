@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
 import { LogoMark } from "@/components/LogoMark";
+import { InstagramBubble } from "@/components/InstagramBubble";
 
 export function Footer() {
   const { t } = useLang();
@@ -91,7 +92,7 @@ export function Footer() {
               href={`https://instagram.com/${site.contact.instagram}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="group mt-7 hidden w-fit md:block"
+              className="group mt-7 hidden w-fit max-w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:block"
             >
               <span className="block w-fit rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
                 <span className="block rounded-[13px] bg-white p-2.5">
@@ -99,10 +100,9 @@ export function Footer() {
                   <img src="/images/instagram-qr.svg" alt={t.footer.instagramQr} className="h-24 w-24" />
                 </span>
               </span>
-              <span className="mt-3 flex items-center gap-1.5 text-[10px] tracking-[0.15em] text-paper-faint transition-colors group-hover:text-paper-dim">
-                <InstagramGlyph />
+              <InstagramBubble>
                 {t.footer.instagramQr}
-              </span>
+              </InstagramBubble>
             </a>
           </div>
         </div>
