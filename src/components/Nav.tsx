@@ -77,7 +77,7 @@ export function Nav() {
           </Link>
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
-          {isAdmin && <Link href="/admin" className="text-xs tracking-[0.15em] text-copper-bright hover:text-paper">{t.nav.admin}</Link>}
+          {isAdmin && <Link href="/admin" className="shrink-0 whitespace-nowrap border border-copper/50 bg-copper/10 px-3 py-2.5 text-xs tracking-[0.15em] text-copper-bright transition-colors hover:border-copper hover:bg-copper/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper">{t.nav.admin}</Link>}
           <AccountMenu />
         </nav>
 
@@ -86,7 +86,7 @@ export function Nav() {
           <LangToggle lang={lang} setLang={setLang} />
           <ThemeToggle />
           {isAdmin && (
-            <Link href="/admin" aria-label={t.nav.admin} title={t.nav.admin} className="grid h-8 w-8 shrink-0 place-items-center text-copper-bright hover:text-paper">
+            <Link href="/admin" aria-label={t.nav.admin} title={t.nav.admin} className="grid h-8 w-8 shrink-0 place-items-center border border-copper/50 bg-copper/10 text-copper-bright transition-colors hover:border-copper hover:bg-copper/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5" aria-hidden="true">
                 <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
                 <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
