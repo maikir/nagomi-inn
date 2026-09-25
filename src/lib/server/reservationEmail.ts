@@ -187,7 +187,7 @@ export function welcomeEmail(reservation: WelcomeReservation, lang: "en" | "ja",
   const closing = ja
     ? `その他、ご不明な点やおすすめ情報など、ご質問がございましたら、このメールへのご返信またはお電話（${site.contact.phone}）でお気軽にご連絡ください。`
     : `If you have any other questions, or would like local recommendations, just reply to this email or give us a call (${site.contact.phone}).`;
-  const signoff = ja ? ["田舎民泊「和」", "Nagomi Inn Miyazaki"] : ["Warm regards,", "Nagomi Inn Miyazaki (田舎民泊「和」)"];
+  const signoff = ja ? ["田舎民泊「和」", "Nagomi Inn Miyazaki"] : ["Warm regards,", "Gen & Sarah from Nagomi Inn Miyazaki (田舎民泊「和」)"];
 
   const p = (text: string) => `<p style="line-height:1.8;margin:0 0 14px">${escapeHtml(text)}</p>`;
   const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body style="margin:0;background:#f7f5f0;color:#292b25;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:#ffffff">`
