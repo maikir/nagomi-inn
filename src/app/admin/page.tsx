@@ -27,6 +27,8 @@ type AdminReservation = {
   bbqPlan?: AmenityPlan;
   saunaPlan?: AmenityPlan;
   arrivalTime?: ArrivalTime;
+  couponCode?: string;
+  discountYen?: number;
   status: "pending" | "confirmed" | "cancelled";
   createdAt: string;
   paidAt?: string;
@@ -425,6 +427,12 @@ function Section({
                   </div>
                   <div className="text-right">
                     <p className="font-display text-xl text-copper-bright">{formatYen(r.totalYen)}</p>
+                    {r.couponCode && (
+                      <p className="mt-1 text-xs text-paper-dim">
+                        {fill(t.reserve.couponDiscount, { code: r.couponCode })}
+                        {r.discountYen ? ` −${formatYen(r.discountYen)}` : ""}
+                      </p>
+                    )}
                     <p className="mt-1 text-[10px] tracking-[0.15em] text-paper-faint">
                       {t.admin.bookedOn.toUpperCase()} {formatDate(r.createdAt.slice(0, 10), lang)}
                     </p>

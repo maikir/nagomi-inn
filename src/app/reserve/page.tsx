@@ -48,7 +48,12 @@ type Draft = {
   bbqPlan?: string;
   saunaPlan?: string;
   registryAck?: boolean;
+  couponInput?: string;
+  coupon?: AppliedCoupon | null;
 };
+
+/** A coupon previewed for one specific stay; changing dates or guests drops it. */
+type AppliedCoupon = { code: string; discountYen: number; totalYen: number; stayKey: string };
 
 export default function ReservePage() {
   const { t, lang } = useLang();
@@ -71,6 +76,10 @@ export default function ReservePage() {
   const [saunaPlan, setSaunaPlan] = useState<AmenityPlan | "">("");
   const [registryAck, setRegistryAck] = useState(false);
   const [registryAttempted, setRegistryAttempted] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<"invalid" | "failed" | null>(null);
   const [error, setError] = useState<Message | null>(null);
   const [detailsAttempted, setDetailsAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -105,6 +114,8 @@ export default function ReservePage() {
         setBbqPlan(isAmenityPlan(d.bbqPlan) ? d.bbqPlan : "");
         setSaunaPlan(isAmenityPlan(d.saunaPlan) ? d.saunaPlan : "");
         setRegistryAck(d.registryAck === true);
+        setCouponInput(typeof d.couponInput === "string" ? d.couponInput : "");
+        setCoupon(d.coupon && typeof d.coupon.code === "string" ? d.coupon : null);
       }
     } catch {}
     setDraftReady(true);
@@ -113,11 +124,11 @@ export default function ReservePage() {
   // Keep the draft current while the visitor fills the form.
   useEffect(() => {
     if (!draftReady || step === "done") return;
-    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck };
+    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon };
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {}
-  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck]);
+  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon]);
 
   // Load current pricing (falls back to defaults on any error / demo mode).
   useEffect(() => {
@@ -140,6 +151,10 @@ export default function ReservePage() {
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
   const p = pricing;
   const { extraGuests, baseTotal, extraTotal, total } = computeBreakdown(p, nights, guests);
+  // Coupons are Stripe promotion codes, so they only exist in payments mode.
+  const stayKey = `${checkIn}|${checkOut}|${guests}`;
+  const appliedCoupon = PAYMENTS_ON && coupon?.stayKey === stayKey ? coupon : null;
+  const payTotal = appliedCoupon ? appliedCoupon.totalYen : total;
 
   const nightsLabel = fill(nights === 1 ? t.reserve.nights_one : t.reserve.nights_other, { n: nights });
   const guestsLabel = fill(guests === 1 ? t.reserve.guest_one : t.reserve.guest_other, { n: guests });
@@ -175,6 +190,43 @@ export default function ReservePage() {
       setStep("confirm");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code || !checkIn || !checkOut) return;
+    setCouponBusy(true);
+    setCouponError(null);
+    try {
+      const session = (await getSupabase()?.auth.getSession())?.data.session;
+      if (!session) {
+        router.push("/login?next=/reserve");
+        return;
+      }
+      const res = await fetch("/api/coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code, checkIn, checkOut, guests }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { code?: string; discountYen?: number; totalYen?: number; error?: string };
+      if (res.ok && json.code && typeof json.discountYen === "number" && typeof json.totalYen === "number") {
+        setCoupon({ code: json.code, discountYen: json.discountYen, totalYen: json.totalYen, stayKey });
+        setCouponInput(json.code);
+      } else {
+        setCoupon(null);
+        setCouponError(json.error === "COUPON_INVALID" || json.error === "INVALID_INPUT" ? "invalid" : "failed");
+      }
+    } catch {
+      setCouponError("failed");
+    } finally {
+      setCouponBusy(false);
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponInput("");
+    setCouponError(null);
   }
 
   function back() {
@@ -228,6 +280,7 @@ export default function ReservePage() {
             bbqPlan,
             saunaPlan,
             registryAck,
+            couponCode: appliedCoupon?.code,
           }),
         });
         const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -241,6 +294,10 @@ export default function ReservePage() {
           setStep("dates");
         } else if (json.error === "AUTH_REQUIRED") {
           router.push("/login?next=/reserve");
+        } else if (json.error === "COUPON_INVALID") {
+          setCoupon(null);
+          setCouponError("invalid");
+          setError({ key: "reserve.couponInvalid" });
         } else {
           setError({ key: "reserve.payError" });
         }
@@ -489,8 +546,73 @@ export default function ReservePage() {
             {arrivalTime && <Row label={t.reserve.arrivalTime} value={arrivalTimeLabel(arrivalTime, t.reserve)} />}
             {bbqPlan && <Row label={t.reserve.bbq} value={amenityPlanLabel(bbqPlan, t.reserve)} />}
             {saunaPlan && <Row label={t.reserve.sauna} value={amenityPlanLabel(saunaPlan, t.reserve)} />}
-            <Row label={t.reserve.total} value={formatYen(total)} strong />
+            {appliedCoupon && (
+              <Row
+                label={fill(t.reserve.couponDiscount, { code: appliedCoupon.code })}
+                value={`−${formatYen(appliedCoupon.discountYen)}`}
+              />
+            )}
+            <Row label={t.reserve.total} value={formatYen(payTotal)} strong />
           </dl>
+
+          {PAYMENTS_ON && authEnabled && user && (
+            <div className="mt-6">
+              <label htmlFor="coupon-code" className="block text-xs tracking-[0.2em] text-paper-faint">
+                {t.reserve.couponLabel.toUpperCase()}
+              </label>
+              {appliedCoupon ? (
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="text-moss">{fill(t.reserve.couponApplied, { code: appliedCoupon.code })}</span>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    className="text-xs tracking-[0.15em] text-paper-faint underline-offset-4 transition-colors hover:text-paper hover:underline"
+                  >
+                    {t.reserve.couponRemove}
+                  </button>
+                </p>
+              ) : (
+                <form
+                  className="mt-3 flex max-w-sm gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    applyCoupon();
+                  }}
+                >
+                  <input
+                    id="coupon-code"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value);
+                      setCouponError(null);
+                    }}
+                    placeholder={t.reserve.couponPlaceholder}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={64}
+                    aria-invalid={couponError ? true : undefined}
+                    aria-describedby={couponError ? "coupon-error" : undefined}
+                    className={`min-w-0 flex-1 border bg-sumi-900 px-4 py-2.5 text-sm tracking-[0.1em] text-paper placeholder:tracking-normal placeholder:text-paper-faint/60 focus:border-copper focus:outline-none ${
+                      couponError ? "border-copper" : "border-paper/20"
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={couponBusy || !couponInput.trim()}
+                    className="shrink-0 border border-paper/30 px-5 py-2.5 text-xs tracking-[0.2em] text-paper transition-all hover:border-paper disabled:opacity-50"
+                  >
+                    {(couponBusy ? t.reserve.couponChecking : t.reserve.couponApply).toUpperCase()}
+                  </button>
+                </form>
+              )}
+              {couponError && !appliedCoupon && (
+                <p id="coupon-error" role="alert" className="mt-2 text-xs text-copper-bright">
+                  {couponError === "invalid" ? t.reserve.couponInvalid : t.reserve.couponLookupFailed}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Nothing to arrange when both are already a yes. */}
           {!(bbqPlan === "yes" && saunaPlan === "yes") && (

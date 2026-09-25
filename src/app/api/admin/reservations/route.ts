@@ -32,6 +32,8 @@ type Row = {
   bbq_plan: string | null;
   sauna_plan: string | null;
   arrival_time: string | null;
+  coupon_code?: string | null;
+  discount_yen?: number | null;
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
   paid_at: string | null;
@@ -70,6 +72,8 @@ export async function GET(req: Request) {
         bbqPlan: isAmenityPlan(r.bbq_plan) ? r.bbq_plan : undefined,
         saunaPlan: isAmenityPlan(r.sauna_plan) ? r.sauna_plan : undefined,
         arrivalTime: isArrivalTime(r.arrival_time) ? r.arrival_time : undefined,
+        couponCode: r.coupon_code ?? undefined,
+        discountYen: r.discount_yen ?? undefined,
         status: r.status,
         createdAt: r.created_at,
         paidAt: r.paid_at ?? undefined,

@@ -9,6 +9,7 @@ import { computeBreakdown } from "@/lib/pricing";
 import { reservationLanguage } from "@/lib/reservations/language";
 import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
+import { normalizeCouponCode, quoteCoupon, type CouponQuote } from "@/lib/server/coupons";
 
 /**
  * POST /api/checkout
@@ -33,6 +34,8 @@ type Body = {
   arrivalTime?: string;
   /** Guest ticked the Hotel Business Act guest-registration notice. */
   registryAck?: boolean;
+  /** Optional Stripe promotion code, already previewed via /api/coupon. */
+  couponCode?: string;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -77,6 +80,23 @@ export async function POST(req: Request) {
 
   // ── price: authoritative, server-side ─────────────────────────────────────
   const { total } = computeBreakdown(p, nights, guests);
+  const stripe = new Stripe(stripeKey);
+
+  // ── coupon: re-checked here; Stripe applies it and decides the final amount ──
+  let quote: CouponQuote | null = null;
+  if (body.couponCode !== undefined && body.couponCode !== "") {
+    const code = normalizeCouponCode(body.couponCode);
+    // Recording the discounted total needs the service role (see below).
+    const admin = getSupabaseAdmin();
+    if (!admin) return NextResponse.json({ error: "PAYMENTS_NOT_CONFIGURED" }, { status: 501 });
+    try {
+      quote = code ? await quoteCoupon(stripe, code, total) : null;
+    } catch (e) {
+      console.error("coupon lookup error:", e);
+      return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
+    }
+    if (!quote) return NextResponse.json({ error: "COUPON_INVALID" }, { status: 400 });
+  }
 
   // ── freshen OTA calendars if stale, then hold the dates ───────────────────
   try {
@@ -114,7 +134,6 @@ export async function POST(req: Request) {
   }
 
   // ── Stripe Checkout session ───────────────────────────────────────────────
-  const stripe = new Stripe(stripeKey);
   const origin = req.headers.get("origin") ?? site.url;
   const ja = lang === "ja";
   try {
@@ -138,6 +157,7 @@ export async function POST(req: Request) {
           },
         },
       ],
+      ...(quote && { discounts: [{ promotion_code: quote.promotionCodeId }] }),
       metadata: { reservation_id: reservation.id, user_id: user.id, lang },
       // Unpaid sessions expire and the webhook frees the held dates.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
@@ -146,17 +166,43 @@ export async function POST(req: Request) {
       locale: ja ? "ja" : "en",
     });
 
-    // Best-effort back-reference for support/refunds.
-    await getSupabaseAdmin()
-      ?.from("reservations")
-      .update({ stripe_session_id: session.id })
-      .eq("id", reservation.id);
+    if (quote) {
+      // The webhook and refunds only accept a charge equal to total_yen, so the
+      // amount Stripe will actually charge must be recorded before the guest can
+      // pay. If that fails, kill the session rather than take an unconfirmable payment.
+      const amountTotal = session.amount_total;
+      const { error: totalError } = amountTotal == null
+        ? { error: new Error("Stripe returned no amount_total") }
+        : await getSupabaseAdmin()!
+          .from("reservations")
+          .update({
+            stripe_session_id: session.id,
+            total_yen: amountTotal,
+            coupon_code: quote.code,
+            discount_yen: total - amountTotal,
+          })
+          .eq("id", reservation.id);
+      if (totalError) {
+        await stripe.checkout.sessions.expire(session.id).catch(() => {});
+        throw totalError;
+      }
+    } else {
+      // Best-effort back-reference for support/refunds.
+      await getSupabaseAdmin()
+        ?.from("reservations")
+        .update({ stripe_session_id: session.id })
+        .eq("id", reservation.id);
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
     // Stripe refused — release the hold so the dates aren't stuck.
     await getSupabaseAdmin()?.from("reservations").update({ status: "cancelled" }).eq("id", reservation.id);
     console.error("stripe checkout error:", e);
+    // e.g. the single-use code was just redeemed by someone else.
+    if (quote && e instanceof Stripe.errors.StripeInvalidRequestError) {
+      return NextResponse.json({ error: "COUPON_INVALID" }, { status: 400 });
+    }
     return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
   }
 }
