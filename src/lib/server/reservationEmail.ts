@@ -141,13 +141,13 @@ export function welcomeEmail(reservation: WelcomeReservation, lang: "en" | "ja",
       ? ja ? `${jaName}：ご利用予定と承りました。事前にご準備いたします。` : `${enName}: you plan to use it — we'll have it ready for you.`
       : plan === "no"
         ? ja ? `${jaName}：今回はご利用なしと承りました。` : `${enName}: not planned this time.`
-        : ja ? `${jaName}：ご利用がお決まりになりましたら、事前にご準備いたしますのでご連絡ください。` : `${enName}: if you decide to use it, just let us know and we'll prepare it in advance.`;
+        : ja ? `${jaName}：ご利用をご希望の場合は、準備のため2日前までにご連絡ください。` : `${enName}: if you'd like to use it, please let us know at least 2 days before your stay so we can get it ready.`;
 
   const amenityNotes = [
     ...(reservation.bbq_plan !== "no"
       ? [ja ? "BBQの炭と食材は、お客様ご自身でのご準備をお願いしております。" : "For the BBQ, please bring your own charcoal and ingredients."]
       : []),
-    ja ? "ご予定が変わりましたら、お気軽にご連絡ください。" : "If your plans change, just let us know.",
+    ja ? "ご予定が変わりましたら、お気軽にご連絡ください（サウナ・BBQのご利用をご希望の場合は2日前までにお願いいたします）。" : "If your plans change, just let us know (at least 2 days before your stay if you'd like to use the sauna or BBQ).",
   ];
 
   const title = ja ? "ようこそ、和へ" : "Welcome to Nagomi";
