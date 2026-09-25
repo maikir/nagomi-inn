@@ -492,6 +492,22 @@ export default function ReservePage() {
             <Row label={t.reserve.total} value={formatYen(total)} strong />
           </dl>
 
+          {/* Nothing to arrange when both are already a yes. */}
+          {!(bbqPlan === "yes" && saunaPlan === "yes") && (
+            <div className="mt-8 border border-paper/15 bg-sumi-900 px-5 py-5">
+              <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.amenityNoticeTitle.toUpperCase()}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-paper-dim">{t.reserve.amenityNotice}</p>
+              <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                <a href={`mailto:${site.contact.email}`} className="text-copper-bright transition-colors hover:text-paper">
+                  {site.contact.email}
+                </a>
+                <a href={`tel:${site.contact.phone.replace(/[^+\d]/g, "")}`} className="text-copper-bright transition-colors hover:text-paper">
+                  {site.contact.phone}
+                </a>
+              </p>
+            </div>
+          )}
+
           <div
             className={`mt-8 border bg-sumi-900 px-5 py-5 ${
               registryAttempted && !registryAck ? "border-copper/70" : "border-paper/15"

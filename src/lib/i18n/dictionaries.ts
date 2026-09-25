@@ -176,6 +176,9 @@ export const en = {
     registryBody: "Under Japan's Hotel Business Act, we are required to record each guest's ① name, ② address and ③ contact details, which we'll confirm at check-in. If anyone in your party is a foreign national, we'll also need to check their nationality and passport number (for foreign residents registered in Japan, we'll check their residence card instead).",
     registryAck: "I understand, and our party will have these ready at check-in.",
     errorRegistry: "Please confirm the guest registration notice to continue.",
+    // TODO(owner): "change_here" marks copy for the owner to confirm before launch.
+    amenityNoticeTitle: "Sauna & BBQ grill",
+    amenityNotice: "If you'd like to use the sauna or BBQ grill, please email or call us at least 2 days before your stay so we can get them ready. change_here",
     goodToKnowTitle: "Good to know",
     goodToKnowCheckin: "Check-in is at reception: walk through the gate with the noren curtain, and it's on your right.",
     goodToKnowToothbrush: "Toothbrushes aren't provided — please bring your own (they're also sold at reception).",
@@ -475,6 +478,8 @@ export const ja: typeof en = {
     registryBody: "旅館業法にて、宿泊者様の①氏名、②住所、③連絡先をお伺いする決まりとなっておりますので、チェックイン時に確認させて頂きます。お連れ様に外国籍の方(日本在住で住民票登録されている場合は在留カードを確認させていただきます)がいらっしゃいましたら、国籍とパスポート番号も確認させて頂きます。",
     registryAck: "内容を確認しました。チェックイン時に同行者分もあわせて準備します。",
     errorRegistry: "宿泊者名簿についてのご案内をご確認ください。",
+    amenityNoticeTitle: "サウナ・BBQグリルについて",
+    amenityNotice: "サウナ・BBQグリルのご利用をご希望の場合は、準備のため2日前までにメールまたはお電話にてご連絡ください。change_here",
     goodToKnowTitle: "ご滞在の前に",
     goodToKnowCheckin: "チェックインは施設内の受付にて。のれんの掛かった門をくぐって右手です。",
     goodToKnowToothbrush: "歯ブラシの備え付けはございません。ご持参ください（受付でも販売しております）。",
