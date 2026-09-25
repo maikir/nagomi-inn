@@ -180,7 +180,7 @@ export const en = {
     amenityNoticeTitle: "Sauna & BBQ grill",
     amenityNotice: "If you'd like to use the sauna or BBQ grill, please email or call us at least 2 days before your stay so we can get them ready. change_here",
     goodToKnowTitle: "Good to know",
-    goodToKnowCheckin: "Check-in is at reception: walk through the gate with the noren curtain, and it's on your right.",
+    goodToKnowCheckin: "Check-in is at reception: walk through the gate with the noren (Japanese fabric curtain), and it's on your right.",
     goodToKnowToothbrush: "Toothbrushes aren't provided — please bring your own (they're also sold at reception).",
     payError: "The payment service couldn't be reached. Please try again.",
     successConfirming: "Confirming your payment…",

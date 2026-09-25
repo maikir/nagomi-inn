@@ -186,7 +186,7 @@ export function welcomeEmail(reservation: WelcomeReservation, lang: "en" | "ja",
       ]
     : [
         { heading: "Checking in", paragraphs: [
-          "Check-in is at the reception on the property. Walk through the gate hung with our noren curtain, and you'll find reception on your right.",
+          "Check-in is at the reception on the property. Walk through the gate hung with our noren (Japanese fabric curtain), and you'll find reception on your right.",
           arrivalLine,
           `Address: ${config.address}`,
         ] },
