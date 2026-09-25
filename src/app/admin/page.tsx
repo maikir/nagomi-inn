@@ -12,6 +12,7 @@ import { findConflicts } from "@/lib/reservations/conflicts";
 import { OccupancyCalendar } from "@/components/admin/OccupancyCalendar";
 import { PricingForm } from "@/components/admin/PricingForm";
 import type { Pricing } from "@/lib/pricing";
+import { amenityPlanLabel, arrivalTimeLabel, type AmenityPlan, type ArrivalTime } from "@/lib/reservations/stayPlans";
 
 type AdminReservation = {
   id: string;
@@ -23,6 +24,9 @@ type AdminReservation = {
   phone?: string;
   notes?: string;
   totalYen: number;
+  bbqPlan?: AmenityPlan;
+  saunaPlan?: AmenityPlan;
+  arrivalTime?: ArrivalTime;
   status: "pending" | "confirmed" | "cancelled";
   createdAt: string;
   paidAt?: string;
@@ -416,6 +420,7 @@ function Section({
                         </>
                       )}
                     </p>
+                    <StayPlans r={r} />
                     {r.notes && <p className="mt-2 text-sm text-paper-dim">“{r.notes}”</p>}
                   </div>
                   <div className="text-right">
@@ -432,4 +437,16 @@ function Section({
       )}
     </div>
   );
+}
+
+/** Arrival time + BBQ / sauna plans, shown only for bookings that have them. */
+function StayPlans({ r }: { r: AdminReservation }) {
+  const { t } = useLang();
+  const parts = [
+    r.arrivalTime && `${t.reserve.arrivalTime}: ${arrivalTimeLabel(r.arrivalTime, t.reserve)}`,
+    r.bbqPlan && `${t.reserve.bbq}: ${amenityPlanLabel(r.bbqPlan, t.reserve)}`,
+    r.saunaPlan && `${t.reserve.sauna}: ${amenityPlanLabel(r.saunaPlan, t.reserve)}`,
+  ].filter(Boolean);
+  if (parts.length === 0) return null;
+  return <p className="mt-2 text-xs text-paper-dim">{parts.join(" ・ ")}</p>;
 }

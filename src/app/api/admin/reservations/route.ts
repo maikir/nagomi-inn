@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
 import { authorizeAdmin } from "@/lib/server/admin";
 import { parseImportUrls } from "@/lib/server/icalSync";
+import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
 
 /**
  * GET /api/admin/reservations
@@ -28,6 +29,9 @@ type Row = {
   phone: string | null;
   notes: string | null;
   total_yen: number;
+  bbq_plan: string | null;
+  sauna_plan: string | null;
+  arrival_time: string | null;
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
   paid_at: string | null;
@@ -63,6 +67,9 @@ export async function GET(req: Request) {
         phone: r.phone ?? undefined,
         notes: r.notes ?? undefined,
         totalYen: r.total_yen,
+        bbqPlan: isAmenityPlan(r.bbq_plan) ? r.bbq_plan : undefined,
+        saunaPlan: isAmenityPlan(r.sauna_plan) ? r.sauna_plan : undefined,
+        arrivalTime: isArrivalTime(r.arrival_time) ? r.arrival_time : undefined,
         status: r.status,
         createdAt: r.created_at,
         paidAt: r.paid_at ?? undefined,

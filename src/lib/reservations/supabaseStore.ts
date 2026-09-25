@@ -1,5 +1,6 @@
 import type { NewReservation, Reservation, ReservationStore } from "./types";
 import { nightsOf } from "./dates";
+import { isAmenityPlan, isArrivalTime } from "./stayPlans";
 import { getSupabase } from "@/lib/supabase/client";
 
 /**
@@ -22,6 +23,10 @@ type Row = {
   total_yen: number;
   status: "pending" | "confirmed" | "cancelled";
   cancellation_state?: "processing" | "failed" | "completed" | null;
+  bbq_plan?: string | null;
+  sauna_plan?: string | null;
+  arrival_time?: string | null;
+  registry_ack_at?: string | null;
   created_at: string;
 };
 
@@ -38,6 +43,10 @@ function toReservation(row: Row): Reservation {
     totalYen: row.total_yen,
     status: row.status,
     cancellationState: row.cancellation_state ?? undefined,
+    bbqPlan: isAmenityPlan(row.bbq_plan) ? row.bbq_plan : undefined,
+    saunaPlan: isAmenityPlan(row.sauna_plan) ? row.sauna_plan : undefined,
+    arrivalTime: isArrivalTime(row.arrival_time) ? row.arrival_time : undefined,
+    registryAckAt: row.registry_ack_at ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -80,6 +89,10 @@ export class SupabaseReservationStore implements ReservationStore {
         phone: input.phone ?? null,
         notes: input.notes ?? null,
         total_yen: input.totalYen,
+        bbq_plan: input.bbqPlan ?? null,
+        sauna_plan: input.saunaPlan ?? null,
+        arrival_time: input.arrivalTime ?? null,
+        registry_ack_at: input.registryAckAt ?? null,
         // user_id defaults to auth.uid() in the database
       })
       .select()

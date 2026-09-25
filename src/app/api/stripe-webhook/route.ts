@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
-import { sendReservationConfirmation } from "@/lib/server/reservationEmail";
+import { sendReservationConfirmation, sendWelcomeEmail } from "@/lib/server/reservationEmail";
 import { applyCancellationRefund } from "@/lib/server/cancellation";
 import { reservationLanguage } from "@/lib/reservations/language";
 
@@ -91,12 +91,26 @@ export async function POST(req: Request) {
           .eq("stripe_session_id", session.id).not("paid_at", "is", null).maybeSingle();
         if (confirmReadError) return NextResponse.json({ error: "db error" }, { status: 500 });
         if (confirmed) {
+          const lang = reservationLanguage(confirmed.lang, session.metadata?.lang, session.locale);
           try {
-            await sendReservationConfirmation(admin, confirmed, reservationLanguage(confirmed.lang, session.metadata?.lang, session.locale));
+            await sendReservationConfirmation(admin, confirmed, lang);
           } catch (error) {
             console.error("confirmation email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
             // Payment stays confirmed. Stripe retries this webhook, including the email.
             return NextResponse.json({ error: "confirmation email failed" }, { status: 500 });
+          }
+          // The hosts' welcome note is a separate step after the confirmation, so a
+          // failure here never holds back the confirmation. Both sends are idempotent,
+          // so a Stripe retry only re-attempts whatever hasn't gone out yet.
+          const { data: welcome, error: welcomeReadError } = await admin.from("reservations")
+            .select("id, name, email, check_in, check_out, guests, total_yen, bbq_plan, sauna_plan, arrival_time")
+            .eq("id", reservationId).maybeSingle();
+          try {
+            if (welcomeReadError || !welcome) throw new Error("could not read stay plans");
+            await sendWelcomeEmail(admin, welcome, lang);
+          } catch (error) {
+            console.error("welcome email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
+            return NextResponse.json({ error: "welcome email failed" }, { status: 500 });
           }
         }
       } else {

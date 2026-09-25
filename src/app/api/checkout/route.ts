@@ -8,6 +8,7 @@ import { getEffectivePricing } from "@/lib/server/pricing";
 import { computeBreakdown } from "@/lib/pricing";
 import { reservationLanguage } from "@/lib/reservations/language";
 import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
+import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
 
 /**
  * POST /api/checkout
@@ -27,6 +28,11 @@ type Body = {
   phone?: string;
   notes?: string;
   lang?: "en" | "ja";
+  bbqPlan?: string;
+  saunaPlan?: string;
+  arrivalTime?: string;
+  /** Guest ticked the Hotel Business Act guest-registration notice. */
+  registryAck?: boolean;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,7 +64,9 @@ export async function POST(req: Request) {
     !checkIn || !checkOut || !ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut) ||
     checkOut <= checkIn || checkIn < today ||
     !guests || !Number.isInteger(guests) || guests < p.minGuests || guests > p.maxGuests ||
-    !validGuestName(name) || !validGuestEmail(email) || !validGuestPhone(body.phone)
+    !validGuestName(name) || !validGuestEmail(email) || !validGuestPhone(body.phone) ||
+    !isAmenityPlan(body.bbqPlan) || !isAmenityPlan(body.saunaPlan) || !isArrivalTime(body.arrivalTime) ||
+    body.registryAck !== true
   ) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
   }
@@ -90,6 +98,11 @@ export async function POST(req: Request) {
       total_yen: total,
       status: "pending",
       lang,
+      bbq_plan: body.bbqPlan,
+      sauna_plan: body.saunaPlan,
+      arrival_time: body.arrivalTime,
+      // Server time, not the browser's: this is the record of acknowledgment.
+      registry_ack_at: new Date().toISOString(),
     })
     .select()
     .single();

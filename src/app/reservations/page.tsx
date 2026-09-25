@@ -8,6 +8,7 @@ import { getSupabase } from "@/lib/supabase/client";
 import { formatYen } from "@/config/site";
 import { getReservationStore, formatDate, nightsBetween, type Reservation } from "@/lib/reservations";
 import { refundTierFor } from "@/lib/reservations/cancellation";
+import { amenityPlanLabel, arrivalTimeLabel } from "@/lib/reservations/stayPlans";
 
 const PAYMENTS_ON = process.env.NEXT_PUBLIC_PAYMENTS === "stripe";
 
@@ -187,6 +188,32 @@ export default function ReservationsPage() {
                     <p className="mt-1 font-display text-2xl text-copper-bright">{formatYen(r.totalYen)}</p>
                   </div>
                 </div>
+
+                {!cancelled && (r.arrivalTime || r.bbqPlan || r.saunaPlan) && (
+                  <div className="mt-5 border-t border-paper/10 pt-4">
+                    <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
+                      {r.arrivalTime && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.arrivalTime.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{arrivalTimeLabel(r.arrivalTime, t.reserve)}</dd>
+                        </div>
+                      )}
+                      {r.bbqPlan && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.bbq.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{amenityPlanLabel(r.bbqPlan, t.reserve)}</dd>
+                        </div>
+                      )}
+                      {r.saunaPlan && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.sauna.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{amenityPlanLabel(r.saunaPlan, t.reserve)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    <p className="mt-3 text-xs text-paper-faint">{t.reservations.plansFixedNote}</p>
+                  </div>
+                )}
 
                 {/* Pending rows are mid-payment: cancelling here couldn't stop the
                     charge, so only confirmed stays offer cancellation. */}

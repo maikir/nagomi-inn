@@ -12,6 +12,15 @@ import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import { LogoMark } from "@/components/LogoMark";
 import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 import {
+  ARRIVAL_TIMES,
+  isAmenityPlan,
+  isArrivalTime,
+  amenityPlanLabel,
+  arrivalTimeLabel,
+  type AmenityPlan,
+  type ArrivalTime,
+} from "@/lib/reservations/stayPlans";
+import {
   getReservationStore,
   nightsBetween,
   formatDate,
@@ -35,6 +44,10 @@ type Draft = {
   email: string;
   phone: string;
   notes: string;
+  arrivalTime?: string;
+  bbqPlan?: string;
+  saunaPlan?: string;
+  registryAck?: boolean;
 };
 
 export default function ReservePage() {
@@ -52,6 +65,12 @@ export default function ReservePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  // Stay plans (asked up front so the hosts can prepare) + registry notice.
+  const [arrivalTime, setArrivalTime] = useState<ArrivalTime | "">("");
+  const [bbqPlan, setBbqPlan] = useState<AmenityPlan | "">("");
+  const [saunaPlan, setSaunaPlan] = useState<AmenityPlan | "">("");
+  const [registryAck, setRegistryAck] = useState(false);
+  const [registryAttempted, setRegistryAttempted] = useState(false);
   const [error, setError] = useState<Message | null>(null);
   const [detailsAttempted, setDetailsAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +101,10 @@ export default function ReservePage() {
         setEmail(d.email);
         setPhone(d.phone);
         setNotes(d.notes);
+        setArrivalTime(isArrivalTime(d.arrivalTime) ? d.arrivalTime : "");
+        setBbqPlan(isAmenityPlan(d.bbqPlan) ? d.bbqPlan : "");
+        setSaunaPlan(isAmenityPlan(d.saunaPlan) ? d.saunaPlan : "");
+        setRegistryAck(d.registryAck === true);
       }
     } catch {}
     setDraftReady(true);
@@ -90,11 +113,11 @@ export default function ReservePage() {
   // Keep the draft current while the visitor fills the form.
   useEffect(() => {
     if (!draftReady || step === "done") return;
-    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes };
+    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck };
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {}
-  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes]);
+  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck]);
 
   // Load current pricing (falls back to defaults on any error / demo mode).
   useEffect(() => {
@@ -135,6 +158,10 @@ export default function ReservePage() {
       setError({ key: "reserve.errorPhone" });
       return false;
     }
+    if (!isArrivalTime(arrivalTime) || !isAmenityPlan(bbqPlan) || !isAmenityPlan(saunaPlan)) {
+      setError({ key: "reserve.errorPlans" });
+      return false;
+    }
     return true;
   }
 
@@ -159,6 +186,11 @@ export default function ReservePage() {
   async function submit() {
     if (!checkIn || !checkOut) return;
     if (!validateDetails()) { setStep("details"); return; }
+    if (!registryAck) {
+      setRegistryAttempted(true);
+      setError({ key: "reserve.errorRegistry" });
+      return;
+    }
     // Reserving requires an account when Supabase is connected. The draft is
     // already in sessionStorage, so nothing is lost across the redirect.
     if (authEnabled && !user) {
@@ -192,6 +224,10 @@ export default function ReservePage() {
             phone: normalizeGuestPhone(phone) || undefined,
             notes: notes.trim() || undefined,
             lang,
+            arrivalTime,
+            bbqPlan,
+            saunaPlan,
+            registryAck,
           }),
         });
         const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -228,6 +264,10 @@ export default function ReservePage() {
         phone: normalizeGuestPhone(phone) || undefined,
         notes: notes.trim() || undefined,
         totalYen: total,
+        arrivalTime: arrivalTime || undefined,
+        bbqPlan: bbqPlan || undefined,
+        saunaPlan: saunaPlan || undefined,
+        registryAckAt: new Date().toISOString(),
       });
       setConfirmed(reservation);
       setStep("done");
@@ -371,6 +411,52 @@ export default function ReservePage() {
                 </label>
               </div>
             </div>
+
+            <div className="mt-10 border-t border-paper/10 pt-8">
+              <h2 className="font-display text-2xl">{t.reserve.stayPlansTitle}</h2>
+              <p className="mt-2 text-sm text-paper-faint">{t.reserve.stayPlansHint}</p>
+              <div className="mt-8 space-y-7">
+                <div>
+                  <label htmlFor="arrival-time" className="block text-xs tracking-[0.2em] text-paper-faint">
+                    {t.reserve.arrivalTime.toUpperCase()}
+                    <span className="text-copper-bright"> *</span>
+                  </label>
+                  <select
+                    id="arrival-time"
+                    value={arrivalTime}
+                    onChange={(e) => setArrivalTime(e.target.value as ArrivalTime | "")}
+                    className={`mt-3 w-full border bg-sumi-900 px-4 py-3 text-sm text-paper focus:border-copper focus:outline-none ${
+                      detailsAttempted && !arrivalTime ? "border-copper" : "border-paper/20"
+                    }`}
+                  >
+                    <option value="" disabled>
+                      {t.reserve.arrivalChoose}
+                    </option>
+                    {ARRIVAL_TIMES.map((time) => (
+                      <option key={time} value={time}>
+                        {arrivalTimeLabel(time, t.reserve)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-paper-faint">{t.reserve.arrivalHint}</p>
+                </div>
+                <ChoiceGroup
+                  name="bbq-plan"
+                  label={t.reserve.bbq}
+                  hint={t.reserve.bbqHint}
+                  value={bbqPlan}
+                  onChange={setBbqPlan}
+                  invalid={detailsAttempted && !bbqPlan}
+                />
+                <ChoiceGroup
+                  name="sauna-plan"
+                  label={t.reserve.sauna}
+                  value={saunaPlan}
+                  onChange={setSaunaPlan}
+                  invalid={detailsAttempted && !saunaPlan}
+                />
+              </div>
+            </div>
           </div>
 
           <Summary
@@ -400,8 +486,43 @@ export default function ReservePage() {
             <Row label={t.reserve.email} value={email} />
             {phone && <Row label={t.reserve.phone} value={phone} />}
             {notes && <Row label={t.reserve.notes} value={notes} />}
+            {arrivalTime && <Row label={t.reserve.arrivalTime} value={arrivalTimeLabel(arrivalTime, t.reserve)} />}
+            {bbqPlan && <Row label={t.reserve.bbq} value={amenityPlanLabel(bbqPlan, t.reserve)} />}
+            {saunaPlan && <Row label={t.reserve.sauna} value={amenityPlanLabel(saunaPlan, t.reserve)} />}
             <Row label={t.reserve.total} value={formatYen(total)} strong />
           </dl>
+
+          <div
+            className={`mt-8 border bg-sumi-900 px-5 py-5 ${
+              registryAttempted && !registryAck ? "border-copper/70" : "border-paper/15"
+            }`}
+          >
+            <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.registryTitle.toUpperCase()}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-paper-dim">{t.reserve.registryBody}</p>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-paper">
+              <input
+                type="checkbox"
+                checked={registryAck}
+                onChange={(e) => {
+                  setRegistryAck(e.target.checked);
+                  if (e.target.checked && error?.key === "reserve.errorRegistry") setError(null);
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-copper"
+              />
+              <span>
+                {t.reserve.registryAck}
+                <span className="text-copper-bright"> *</span>
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.goodToKnowTitle.toUpperCase()}</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-paper-dim">
+              <li>・{t.reserve.goodToKnowCheckin}</li>
+              <li>・{t.reserve.goodToKnowToothbrush}</li>
+            </ul>
+          </div>
           {authEnabled && !user && (
             <p className="mt-6 border border-paper/15 bg-sumi-900 px-5 py-4 text-sm text-paper-dim">
               {t.auth.signInToConfirm}
@@ -490,6 +611,59 @@ export default function ReservePage() {
 }
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
+
+/** Yes / No / Not sure yet, as native radios styled like segmented buttons. */
+function ChoiceGroup({
+  name,
+  label,
+  hint,
+  value,
+  onChange,
+  invalid,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  value: AmenityPlan | "";
+  onChange: (v: AmenityPlan) => void;
+  invalid?: boolean;
+}) {
+  const { t } = useLang();
+  const options: AmenityPlan[] = ["yes", "no", "undecided"];
+  return (
+    <fieldset>
+      <legend className="text-xs tracking-[0.2em] text-paper-faint">
+        {label.toUpperCase()}
+        <span className="text-copper-bright"> *</span>
+      </legend>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {options.map((option) => (
+          <label
+            key={option}
+            className={`cursor-pointer border px-3 py-3 text-center text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-copper ${
+              value === option
+                ? "border-copper bg-copper/10 text-copper-bright"
+                : invalid
+                  ? "border-copper/60 text-paper-dim hover:border-copper"
+                  : "border-paper/20 text-paper-dim hover:border-paper/40 hover:text-paper"
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              checked={value === option}
+              onChange={() => onChange(option)}
+              className="sr-only"
+            />
+            {amenityPlanLabel(option, t.reserve)}
+          </label>
+        ))}
+      </div>
+      {hint && <p className="mt-2 text-xs text-paper-faint">{hint}</p>}
+    </fieldset>
+  );
+}
 
 function Field({
   id,
