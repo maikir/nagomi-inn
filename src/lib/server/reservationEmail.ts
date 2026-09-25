@@ -13,7 +13,24 @@ export type PaidReservation = {
   total_yen: number;
 };
 
-type EmailConfig = { from: string; replyTo: string; address: string };
+type EmailConfig = { from: string; replyTo: string; address: string; logoUrl: string };
+
+// Emails must link images by absolute URL. Each environment links its own
+// deployed copy so staging tests don't depend on what's live in production.
+function emailLogoUrl() {
+  const origin = process.env.VERCEL_ENV === "production"
+    ? "https://www.nagomi-inn-miyazaki.com"
+    : "https://staging.nagomi-inn-miyazaki.com";
+  return `${origin}/images/email-logo.png`;
+}
+
+/** Wordmark + title on the left, logo mark top-right. Table layout for email clients. */
+function emailHeader(title: string, logoUrl: string) {
+  return `<table role="presentation" style="width:100%;border-collapse:collapse"><tr>`
+    + `<td style="vertical-align:top;padding:0"><p style="letter-spacing:3px">和 NAGOMI</p><h1 style="font-size:24px">${title}</h1></td>`
+    + `<td style="vertical-align:top;padding:0 0 0 16px;width:64px;text-align:right"><img src="${escapeHtml(logoUrl)}" width="64" height="67" alt="Nagomi Inn Miyazaki" style="display:block;border:0;width:64px;height:auto;margin:12px 0 0 auto"></td>`
+    + `</tr></table>`;
+}
 
 // Dotenv removes wrapper quotes; hosting dashboards can store them literally.
 function emailSetting(value: string | undefined) {
@@ -85,7 +102,7 @@ export function confirmationEmail(reservation: PaidReservation, lang: "en" | "ja
     reply_to: config.replyTo,
     subject: `${title} — NAGOMI ${reservation.id}`,
     text: [title, greeting, message, ...rows.map(([label, value]) => `${label}: ${value}`), footer].join("\n\n"),
-    html: `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body style="margin:0;background:#f7f5f0;color:#292b25;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:#ffffff"><p style="letter-spacing:3px">和 NAGOMI</p><h1 style="font-size:24px">${title}</h1><p>${escapeHtml(greeting)}</p><p style="line-height:1.7">${message}</p><table role="presentation" style="width:100%;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:12px 8px;border-bottom:1px solid #e6e5df;vertical-align:top">${label}</td><td style="padding:12px 8px;border-bottom:1px solid #e6e5df;white-space:pre-line">${escapeHtml(value)}</td></tr>`).join("")}</table><p style="line-height:1.7">${footer}</p></div></body></html>`,
+    html: `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body style="margin:0;background:#f7f5f0;color:#292b25;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:#ffffff">${emailHeader(title, config.logoUrl)}<p>${escapeHtml(greeting)}</p><p style="line-height:1.7">${message}</p><table role="presentation" style="width:100%;border-collapse:collapse">${rows.map(([label, value]) => `<tr><td style="padding:12px 8px;border-bottom:1px solid #e6e5df;vertical-align:top">${label}</td><td style="padding:12px 8px;border-bottom:1px solid #e6e5df;white-space:pre-line">${escapeHtml(value)}</td></tr>`).join("")}</table><p style="line-height:1.7">${footer}</p></div></body></html>`,
   };
 }
 
@@ -191,7 +208,7 @@ export function welcomeEmail(reservation: WelcomeReservation, lang: "en" | "ja",
 
   const p = (text: string) => `<p style="line-height:1.8;margin:0 0 14px">${escapeHtml(text)}</p>`;
   const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body style="margin:0;background:#f7f5f0;color:#292b25;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:#ffffff">`
-    + `<p style="letter-spacing:3px">和 NAGOMI</p><h1 style="font-size:24px">${title}</h1>`
+    + emailHeader(title, config.logoUrl)
     + `<p style="margin:0 0 6px">${escapeHtml(greeting)}</p><p style="margin:0 0 22px;font-size:13px;color:#7a776c">${escapeHtml(summary)}</p>`
     + intro.map(p).join("")
     + sections.map((s) => `<h2 style="font-size:16px;margin:28px 0 10px;padding-top:16px;border-top:1px solid #e6e5df">${escapeHtml(s.heading)}</h2>`
@@ -256,7 +273,7 @@ async function deliverReservationEmail(
   // Freeze the payload: retries must use exactly the same content even after a deploy.
   const { error: insertError } = await admin.from(table).upsert({
     reservation_id: reservationId,
-    payload: buildPayload({ from, replyTo, address }),
+    payload: buildPayload({ from, replyTo, address, logoUrl: emailLogoUrl() }),
   }, { onConflict: "reservation_id", ignoreDuplicates: true });
   if (insertError) throw new Error(`Could not queue ${kind} email`);
   const { data: email, error: readError } = await admin.from(table)
