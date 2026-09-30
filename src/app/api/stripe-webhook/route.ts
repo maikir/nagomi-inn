@@ -71,7 +71,15 @@ export async function POST(req: Request) {
           console.error("webhook payment mismatch:", reservationId);
           return NextResponse.json({ error: "payment mismatch" }, { status: 500 });
         }
-        if (reservation.status === "cancelled") return NextResponse.json({ received: true });
+        if (reservation.status === "cancelled") {
+          // Shouldn't happen: paying needs an open Checkout session, and holds are
+          // only released once theirs has expired. If it ever does, the guest has
+          // paid for a stay they don't have — never revive it (the dates may be
+          // resold), but make it loud so the owner refunds or rebooks by hand.
+          console.error("PAID BUT CANCELLED — needs a manual refund or rebooking:",
+            reservationId, session.id, session.payment_intent);
+          return NextResponse.json({ received: true });
+        }
         const { error } = await admin
           .from("reservations")
           .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id,
