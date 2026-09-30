@@ -33,6 +33,9 @@ type Row = {
   sauna_plan: string | null;
   arrival_time: string | null;
   coupon_code?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+  address?: string | null;
   discount_yen?: number | null;
   status: "pending" | "confirmed" | "cancelled";
   created_at: string;
@@ -73,6 +76,9 @@ export async function GET(req: Request) {
         saunaPlan: isAmenityPlan(r.sauna_plan) ? r.sauna_plan : undefined,
         arrivalTime: isArrivalTime(r.arrival_time) ? r.arrival_time : undefined,
         couponCode: r.coupon_code ?? undefined,
+        country: r.country ?? undefined,
+        postalCode: r.postal_code ?? undefined,
+        address: r.address ?? undefined,
         discountYen: r.discount_yen ?? undefined,
         status: r.status,
         createdAt: r.created_at,
@@ -89,4 +95,33 @@ export async function GET(req: Request) {
     },
     { headers: { "Cache-Control": "no-store, max-age=0" } },
   );
+}
+
+/**
+ * PATCH /api/admin/reservations
+ * Owner-only. Update a booking's stay plans on the guest's behalf (e.g. they
+ * called to add the sauna). Body: { id, bbqPlan, saunaPlan, arrivalTime }.
+ */
+export async function PATCH(req: Request) {
+  const admin = getSupabaseAdmin();
+  if (!admin) return NextResponse.json({ error: "NOT_CONFIGURED" }, { status: 501 });
+
+  const auth = await authorizeAdmin(req);
+  if (!auth.ok) return NextResponse.json({ error: auth.status === 403 ? "FORBIDDEN" : "AUTH_REQUIRED" }, { status: auth.status });
+
+  const body = (await req.json().catch(() => ({}))) as { id?: unknown; bbqPlan?: unknown; saunaPlan?: unknown; arrivalTime?: unknown };
+  if (typeof body.id !== "string" || !body.id || !isAmenityPlan(body.bbqPlan) || !isAmenityPlan(body.saunaPlan) || !isArrivalTime(body.arrivalTime)) {
+    return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
+  }
+
+  const { data, error } = await admin
+    .from("reservations")
+    .update({ bbq_plan: body.bbqPlan, sauna_plan: body.saunaPlan, arrival_time: body.arrivalTime })
+    .eq("id", body.id)
+    .select("id")
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: "DB_ERROR" }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+  console.info("stay plans updated by admin:", body.id, auth.email);
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }

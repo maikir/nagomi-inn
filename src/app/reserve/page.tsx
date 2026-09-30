@@ -21,6 +21,14 @@ import {
   type ArrivalTime,
 } from "@/lib/reservations/stayPlans";
 import {
+  countryOptions,
+  formatAddress,
+  isCountryCode,
+  normalizePostalCode,
+  validAddress,
+  validPostalCode,
+} from "@/lib/reservations/address";
+import {
   getReservationStore,
   nightsBetween,
   formatDate,
@@ -40,10 +48,14 @@ type Draft = {
   checkIn: string | null;
   checkOut: string | null;
   guests: number;
-  name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   notes: string;
+  country?: string;
+  postalCode?: string;
+  address?: string;
   arrivalTime?: string;
   bbqPlan?: string;
   saunaPlan?: string;
@@ -66,7 +78,13 @@ export default function ReservePage() {
   const [checkIn, setCheckIn] = useState<string | null>(null);
   const [checkOut, setCheckOut] = useState<string | null>(null);
   const [guests, setGuests] = useState(4);
-  const [name, setName] = useState("");
+  // Entered separately, saved as one name in the order the language expects
+  // (姓 名 in Japanese, "First Last" in English).
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [country, setCountry] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [address, setAddress] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -106,7 +124,11 @@ export default function ReservePage() {
         setCheckIn(d.checkIn);
         setCheckOut(d.checkOut);
         setGuests(d.guests);
-        setName(d.name);
+        setFirstName(d.firstName ?? "");
+        setLastName(d.lastName ?? "");
+        setCountry(isCountryCode(d.country) ? d.country : "");
+        setPostalCode(d.postalCode ?? "");
+        setAddress(d.address ?? "");
         setEmail(d.email);
         setPhone(d.phone);
         setNotes(d.notes);
@@ -124,11 +146,16 @@ export default function ReservePage() {
   // Keep the draft current while the visitor fills the form.
   useEffect(() => {
     if (!draftReady || step === "done") return;
-    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon };
+    const draft: Draft = { step, checkIn, checkOut, guests, firstName, lastName, email, phone, notes, country, postalCode, address, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon };
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {}
-  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon]);
+  }, [draftReady, step, checkIn, checkOut, guests, firstName, lastName, email, phone, notes, country, postalCode, address, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon]);
+
+  // Most guests booking in Japanese live in Japan; preselect it (still changeable).
+  useEffect(() => {
+    if (draftReady && lang === "ja") setCountry((cur) => cur || "JP");
+  }, [draftReady, lang]);
 
   // Load current pricing (falls back to defaults on any error / demo mode).
   useEffect(() => {
@@ -144,8 +171,16 @@ export default function ReservePage() {
   useEffect(() => {
     if (!user) return;
     setEmail((cur) => cur || user.email || "");
-    const fullName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? "") as string;
-    if (fullName) setName((cur) => cur || fullName);
+    const fullName = ((user.user_metadata?.full_name ?? user.user_metadata?.name ?? "") as string).trim();
+    // Split an account name into first/last only when it's unambiguous: two or
+    // more words. CJK names are written family-name first.
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const cjk = /[\u3040-\u30ff\u3400-\u9fff]/.test(fullName);
+      const [first, last] = cjk ? [parts.slice(1).join(" "), parts[0]] : [parts.slice(0, -1).join(" "), parts[parts.length - 1]];
+      setFirstName((cur) => cur || first);
+      setLastName((cur) => cur || last);
+    }
   }, [user]);
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
@@ -158,10 +193,12 @@ export default function ReservePage() {
 
   const nightsLabel = fill(nights === 1 ? t.reserve.nights_one : t.reserve.nights_other, { n: nights });
   const guestsLabel = fill(guests === 1 ? t.reserve.guest_one : t.reserve.guest_other, { n: guests });
+  const name = (lang === "ja" ? [lastName, firstName] : [firstName, lastName]).map((s) => s.trim()).filter(Boolean).join(" ");
+  const addressLine = formatAddress({ country, postalCode: postalCode ? normalizePostalCode(postalCode, country) : "", address: address.trim() }, lang);
 
   function validateDetails() {
     setDetailsAttempted(true);
-    if (!validGuestName(name)) {
+    if (!validGuestName(firstName) || !validGuestName(lastName) || !validGuestName(name)) {
       setError({ key: "reserve.errorName" });
       return false;
     }
@@ -171,6 +208,18 @@ export default function ReservePage() {
     }
     if (!validGuestPhone(phone)) {
       setError({ key: "reserve.errorPhone" });
+      return false;
+    }
+    if (!isCountryCode(country)) {
+      setError({ key: "reserve.errorCountry" });
+      return false;
+    }
+    if (!validPostalCode(postalCode, country)) {
+      setError({ key: "reserve.errorPostal" });
+      return false;
+    }
+    if (!validAddress(address)) {
+      setError({ key: "reserve.errorAddress" });
       return false;
     }
     if (!isArrivalTime(arrivalTime) || !isAmenityPlan(bbqPlan) || !isAmenityPlan(saunaPlan)) {
@@ -271,7 +320,7 @@ export default function ReservePage() {
             checkIn,
             checkOut,
             guests,
-            name: name.trim(),
+            name,
             email: email.trim(),
             phone: normalizeGuestPhone(phone) || undefined,
             notes: notes.trim() || undefined,
@@ -280,6 +329,9 @@ export default function ReservePage() {
             bbqPlan,
             saunaPlan,
             registryAck,
+            country,
+            postalCode: postalCode.trim() || undefined,
+            address: address.trim(),
             couponCode: appliedCoupon?.code,
           }),
         });
@@ -318,7 +370,7 @@ export default function ReservePage() {
         checkIn,
         checkOut,
         guests,
-        name: name.trim(),
+        name,
         email: email.trim(),
         phone: normalizeGuestPhone(phone) || undefined,
         notes: notes.trim() || undefined,
@@ -327,6 +379,9 @@ export default function ReservePage() {
         bbqPlan: bbqPlan || undefined,
         saunaPlan: saunaPlan || undefined,
         registryAckAt: new Date().toISOString(),
+        country,
+        postalCode: postalCode.trim() ? normalizePostalCode(postalCode, country) : undefined,
+        address: address.trim(),
       });
       setConfirmed(reservation);
       setStep("done");
@@ -454,9 +509,51 @@ export default function ReservePage() {
           <div>
             <h2 className="font-display text-2xl">{t.reserve.yourDetails}</h2>
             <div className="mt-8 space-y-6">
-              <Field id="guest-name" label={t.reserve.name} value={name} onChange={setName} type="text" autoComplete="name" maxLength={100} required attempted={detailsAttempted} error={validGuestName(name) ? undefined : t.reserve.errorName} />
+              {/* 姓・名 in Japanese; First / Last in English. */}
+              <div className="grid gap-6 sm:grid-cols-2">
+                {(() => {
+                  const first = <Field key="first" id="guest-first-name" label={t.reserve.firstName} value={firstName} onChange={setFirstName} type="text" autoComplete="given-name" maxLength={50} required attempted={detailsAttempted} error={validGuestName(firstName) ? undefined : t.reserve.errorNameField} />;
+                  const last = <Field key="last" id="guest-last-name" label={t.reserve.lastName} value={lastName} onChange={setLastName} type="text" autoComplete="family-name" maxLength={50} required attempted={detailsAttempted} error={validGuestName(lastName) ? undefined : t.reserve.errorNameField} />;
+                  return lang === "ja" ? [last, first] : [first, last];
+                })()}
+              </div>
               <Field id="guest-email" label={t.reserve.email} value={email} onChange={setEmail} type="email" autoComplete="email" maxLength={254} required attempted={detailsAttempted} error={validGuestEmail(email) ? undefined : t.reserve.errorEmail} />
               <Field id="guest-phone" label={t.reserve.phone} value={phone} onChange={setPhone} type="tel" autoComplete="tel" maxLength={40} attempted={detailsAttempted} error={validGuestPhone(phone) ? undefined : t.reserve.errorPhone} hint={t.reserve.phoneHint} />
+
+              {/* Address (guest registry). Japanese order: 国 → 〒 → 住所; English: Country → Address → Postal code. */}
+              <div className="flex flex-col gap-6">
+                <div>
+                  <label htmlFor="guest-country" className="block text-xs tracking-[0.2em] text-paper-faint">
+                    {t.reserve.country.toUpperCase()}
+                    <span className="text-copper-bright"> *</span>
+                  </label>
+                  <select
+                    id="guest-country"
+                    autoComplete="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    aria-invalid={detailsAttempted && !isCountryCode(country) ? true : undefined}
+                    className={`mt-3 w-full border bg-sumi-900 px-4 py-3 text-sm text-paper focus:border-copper focus:outline-none ${
+                      detailsAttempted && !isCountryCode(country) ? "border-copper" : "border-paper/20"
+                    }`}
+                  >
+                    <option value="" disabled>
+                      {t.reserve.countryChoose}
+                    </option>
+                    {countryOptions(lang).map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={lang === "ja" ? "order-1" : "order-2"}>
+                  <Field id="guest-postal" label={country === "JP" ? t.reserve.postalCode : t.reserve.postalCodeOptional} value={postalCode} onChange={setPostalCode} type="text" autoComplete="postal-code" maxLength={20} required={country === "JP"} placeholder={country === "JP" ? t.reserve.postalPlaceholder : undefined} attempted={detailsAttempted} error={validPostalCode(postalCode, country) ? undefined : t.reserve.errorPostal} />
+                </div>
+                <div className={lang === "ja" ? "order-2" : "order-1"}>
+                  <Field id="guest-address" label={t.reserve.address} value={address} onChange={setAddress} type="text" autoComplete="street-address" maxLength={200} required placeholder={t.reserve.addressPlaceholder} attempted={detailsAttempted} error={validAddress(address) ? undefined : t.reserve.errorAddress} hint={t.reserve.addressHint} />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs tracking-[0.2em] text-paper-faint">
                   {t.reserve.notes.toUpperCase()}
@@ -545,6 +642,7 @@ export default function ReservePage() {
             <Row label={t.reserve.name} value={name} />
             <Row label={t.reserve.email} value={email} />
             {phone && <Row label={t.reserve.phone} value={phone} />}
+            {addressLine && <Row label={t.reserve.address} value={addressLine} />}
             {notes && <Row label={t.reserve.notes} value={notes} />}
             {arrivalTime && <Row label={t.reserve.arrivalTime} value={arrivalTimeLabel(arrivalTime, t.reserve)} />}
             {bbqPlan && <Row label={t.reserve.bbq} value={amenityPlanLabel(bbqPlan, t.reserve)} />}
@@ -817,6 +915,7 @@ function Field({
   maxLength,
   error,
   hint,
+  placeholder,
   attempted,
 }: {
   id: string;
@@ -829,6 +928,7 @@ function Field({
   maxLength?: number;
   error?: string;
   hint?: string;
+  placeholder?: string;
   attempted?: boolean;
 }) {
   const [touched, setTouched] = useState(false);
@@ -844,13 +944,14 @@ function Field({
         inputMode={type === "tel" ? "tel" : type === "email" ? "email" : "text"}
         autoComplete={autoComplete}
         maxLength={maxLength}
+        placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
         onBlur={() => setTouched(true)}
         aria-invalid={Boolean(visibleError)}
         aria-describedby={visibleError ? `${id}-error` : hint ? `${id}-hint` : undefined}
-        className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
+        className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper placeholder:text-paper-faint/60 focus:border-copper focus:outline-none"
       />
       {visibleError ? <span id={`${id}-error`} role="alert" className="mt-2 block text-xs tracking-normal text-copper-bright">{visibleError}</span>
         : hint ? <span id={`${id}-hint`} className="mt-2 block text-xs tracking-normal text-paper-faint">{hint}</span> : null}

@@ -20,6 +20,10 @@ export interface Reservation {
   bbqPlan?: AmenityPlan;
   saunaPlan?: AmenityPlan;
   arrivalTime?: ArrivalTime;
+  /** Guest address for the registry: ISO country code, postal code, address text. */
+  country?: string;
+  postalCode?: string;
+  address?: string;
   /** When the guest acknowledged the guest-registration notice. */
   registryAckAt?: string;
   createdAt: string; // ISO datetime

@@ -9,6 +9,7 @@ import { computeBreakdown } from "@/lib/pricing";
 import { reservationLanguage } from "@/lib/reservations/language";
 import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
+import { isCountryCode, normalizePostalCode, validAddress, validPostalCode } from "@/lib/reservations/address";
 import { normalizeCouponCode, quoteCoupon, type CouponQuote } from "@/lib/server/coupons";
 import { releaseGuestHolds, releaseOrphanedHolds } from "@/lib/server/holds";
 
@@ -36,6 +37,10 @@ type Body = {
   arrivalTime?: string;
   /** Guest ticked the Hotel Business Act guest-registration notice. */
   registryAck?: boolean;
+  /** Guest address for the registry (旅館業法). */
+  country?: string;
+  postalCode?: string;
+  address?: string;
   /** Optional Stripe promotion code, already previewed via /api/coupon. */
   couponCode?: string;
 };
@@ -74,6 +79,7 @@ export async function POST(req: Request) {
     !guests || !Number.isInteger(guests) || guests < p.minGuests || guests > p.maxGuests ||
     !validGuestName(name) || !validGuestEmail(email) || !validGuestPhone(body.phone) ||
     !isAmenityPlan(body.bbqPlan) || !isAmenityPlan(body.saunaPlan) || !isArrivalTime(body.arrivalTime) ||
+    !isCountryCode(body.country) || !validPostalCode(body.postalCode, body.country) || !validAddress(body.address) ||
     body.registryAck !== true
   ) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
@@ -138,6 +144,9 @@ export async function POST(req: Request) {
       bbq_plan: body.bbqPlan,
       sauna_plan: body.saunaPlan,
       arrival_time: body.arrivalTime,
+      country: body.country,
+      postal_code: body.postalCode ? normalizePostalCode(body.postalCode, body.country) || null : null,
+      address: body.address.trim(),
       // Server time, not the browser's: this is the record of acknowledgment.
       registry_ack_at: new Date().toISOString(),
     })

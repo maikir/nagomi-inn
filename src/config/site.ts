@@ -43,14 +43,14 @@ export const site = {
     maxNights: 14,
   },
 
-  checkIn: "15:00",
+  checkIn: "16:00",
   checkOut: "10:00",
 
   /**
    * キャンセルポリシー
    *   チェックイン5日前まで無料
    *   4日前〜1日前　キャンセル料50%
-   *   当日（チェックイン24時間以内＝前日15時以降）100%
+   *   当日（チェックイン24時間以内＝前日16時以降）100%
    * Tier boundaries are computed in JST in src/lib/reservations/cancellation.ts
    * — that file is the single source of truth for the refund math.
    */
@@ -59,7 +59,7 @@ export const site = {
     freeUntilDaysBefore: 5,
     /** Inside the free boundary but before the same-day window → 50% fee. */
     lateFeePercent: 50,
-    /** Within 24h of check-in (after 15:00 the day before) → 100% fee. */
+    /** Within 24h of check-in (after 16:00 the day before) → 100% fee. */
     sameDayFeePercent: 100,
   },
 } as const;

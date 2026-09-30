@@ -27,6 +27,9 @@ type Row = {
   sauna_plan?: string | null;
   arrival_time?: string | null;
   registry_ack_at?: string | null;
+  country?: string | null;
+  postal_code?: string | null;
+  address?: string | null;
   created_at: string;
 };
 
@@ -47,6 +50,9 @@ function toReservation(row: Row): Reservation {
     saunaPlan: isAmenityPlan(row.sauna_plan) ? row.sauna_plan : undefined,
     arrivalTime: isArrivalTime(row.arrival_time) ? row.arrival_time : undefined,
     registryAckAt: row.registry_ack_at ?? undefined,
+    country: row.country ?? undefined,
+    postalCode: row.postal_code ?? undefined,
+    address: row.address ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -93,6 +99,9 @@ export class SupabaseReservationStore implements ReservationStore {
         sauna_plan: input.saunaPlan ?? null,
         arrival_time: input.arrivalTime ?? null,
         registry_ack_at: input.registryAckAt ?? null,
+        country: input.country ?? null,
+        postal_code: input.postalCode ?? null,
+        address: input.address ?? null,
         // user_id defaults to auth.uid() in the database
       })
       .select()

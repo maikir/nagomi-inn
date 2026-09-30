@@ -8,8 +8,9 @@
 export const AMENITY_PLANS = ["yes", "no", "undecided"] as const;
 export type AmenityPlan = (typeof AMENITY_PLANS)[number];
 
-/** Hourly from check-in (15:00) to 21:00, then "late" and "undecided". */
-export const ARRIVAL_TIMES = ["15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "late", "undecided"] as const;
+/** Hourly from check-in (16:00) to 21:00, then "late" and "undecided".
+ *  (The DB constraint still accepts "15:00" from before check-in moved.) */
+export const ARRIVAL_TIMES = ["16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "late", "undecided"] as const;
 export type ArrivalTime = (typeof ARRIVAL_TIMES)[number];
 
 export function isAmenityPlan(value: unknown): value is AmenityPlan {

@@ -12,7 +12,8 @@ import { findConflicts } from "@/lib/reservations/conflicts";
 import { OccupancyCalendar } from "@/components/admin/OccupancyCalendar";
 import { PricingForm } from "@/components/admin/PricingForm";
 import type { Pricing } from "@/lib/pricing";
-import { amenityPlanLabel, arrivalTimeLabel, type AmenityPlan, type ArrivalTime } from "@/lib/reservations/stayPlans";
+import { AMENITY_PLANS, ARRIVAL_TIMES, amenityPlanLabel, arrivalTimeLabel, type AmenityPlan, type ArrivalTime } from "@/lib/reservations/stayPlans";
+import { formatAddress } from "@/lib/reservations/address";
 
 type AdminReservation = {
   id: string;
@@ -29,6 +30,9 @@ type AdminReservation = {
   arrivalTime?: ArrivalTime;
   couponCode?: string;
   discountYen?: number;
+  country?: string;
+  postalCode?: string;
+  address?: string;
   status: "pending" | "confirmed" | "cancelled";
   createdAt: string;
   paidAt?: string;
@@ -38,6 +42,8 @@ type Payload = { reservations: AdminReservation[]; externalBlocks: ExternalBlock
 type SyncResult = { source: string; events: number; error?: string };
 
 type Screen = "loading" | "forbidden" | "ready";
+type StayPlanValues = { bbqPlan: AmenityPlan; saunaPlan: AmenityPlan; arrivalTime: ArrivalTime };
+type SavePlans = (id: string, plans: StayPlanValues) => Promise<boolean>;
 
 export default function AdminPage() {
   const { t, lang } = useLang();
@@ -79,6 +85,18 @@ export default function AdminPage() {
     setScreen("ready");
     return true;
   }, [authedFetch, router]);
+
+  // Update a booking's stay plans on the guest's behalf (e.g. after a call).
+  const savePlans: SavePlans = async (id, plans) => {
+    const res = await authedFetch("/api/admin/reservations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...plans }),
+    });
+    if (!res?.ok) return false;
+    setData((d) => d && { ...d, reservations: d.reservations.map((r) => (r.id === id ? { ...r, ...plans } : r)) });
+    return true;
+  };
 
   async function runSync() {
     setSyncing(true);
@@ -333,8 +351,8 @@ export default function AdminPage() {
             ))}
           </div>
 
-          <Section title={t.admin.upcoming} rows={upcoming} today={today} conflictIds={conflicts.reservationIds} />
-          <Section title={t.admin.past} rows={past} today={today} conflictIds={conflicts.reservationIds} muted />
+          <Section title={t.admin.upcoming} rows={upcoming} today={today} conflictIds={conflicts.reservationIds} onSavePlans={savePlans} />
+          <Section title={t.admin.past} rows={past} today={today} conflictIds={conflicts.reservationIds} onSavePlans={savePlans} muted />
         </div>
       )}
     </div>
@@ -356,12 +374,14 @@ function Section({
   rows,
   muted,
   conflictIds,
+  onSavePlans,
 }: {
   title: string;
   rows: AdminReservation[];
   today: string;
   muted?: boolean;
   conflictIds: Set<string>;
+  onSavePlans: SavePlans;
 }) {
   const { t, lang } = useLang();
   return (
@@ -422,7 +442,10 @@ function Section({
                         </>
                       )}
                     </p>
-                    <StayPlans r={r} />
+                    {(r.address || r.postalCode) && (
+                      <p className="mt-1 text-xs text-paper-faint">{formatAddress(r, lang)}</p>
+                    )}
+                    <StayPlans r={r} onSave={onSavePlans} />
                     {r.notes && <p className="mt-2 text-sm text-paper-dim">“{r.notes}”</p>}
                   </div>
                   <div className="text-right">
@@ -447,14 +470,108 @@ function Section({
   );
 }
 
-/** Arrival time + BBQ / sauna plans, shown only for bookings that have them. */
-function StayPlans({ r }: { r: AdminReservation }) {
+/**
+ * Arrival time + BBQ / sauna plans. Guests can't change these after booking, so
+ * the owner edits them here when a guest calls or emails.
+ */
+function StayPlans({ r, onSave }: { r: AdminReservation; onSave: SavePlans }) {
   const { t } = useLang();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<StayPlanValues | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [failed, setFailed] = useState(false);
+
   const parts = [
     r.arrivalTime && `${t.reserve.arrivalTime}: ${arrivalTimeLabel(r.arrivalTime, t.reserve)}`,
     r.bbqPlan && `${t.reserve.bbq}: ${amenityPlanLabel(r.bbqPlan, t.reserve)}`,
     r.saunaPlan && `${t.reserve.sauna}: ${amenityPlanLabel(r.saunaPlan, t.reserve)}`,
   ].filter(Boolean);
-  if (parts.length === 0) return null;
-  return <p className="mt-2 text-xs text-paper-dim">{parts.join(" ・ ")}</p>;
+  const editable = r.status !== "cancelled";
+
+  function startEditing() {
+    // Older bookings without answers start from "not sure yet".
+    setDraft({ bbqPlan: r.bbqPlan ?? "undecided", saunaPlan: r.saunaPlan ?? "undecided", arrivalTime: r.arrivalTime ?? "undecided" });
+    setFailed(false);
+    setEditing(true);
+  }
+
+  async function save() {
+    if (!draft) return;
+    setSaving(true);
+    setFailed(false);
+    const ok = await onSave(r.id, draft);
+    setSaving(false);
+    if (ok) setEditing(false);
+    else setFailed(true);
+  }
+
+  if (editing && draft) {
+    const select = "mt-1 w-full border border-paper/20 bg-sumi-900 px-2 py-1.5 text-xs text-paper focus:border-copper focus:outline-none";
+    const label = "block text-[10px] tracking-[0.15em] text-paper-faint";
+    return (
+      <div className="mt-3 max-w-md border border-paper/15 p-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className={label}>
+            {t.reserve.arrivalTime.toUpperCase()}
+            <select className={select} value={draft.arrivalTime} onChange={(e) => setDraft({ ...draft, arrivalTime: e.target.value as ArrivalTime })}>
+              {ARRIVAL_TIMES.map((time) => (
+                <option key={time} value={time}>{arrivalTimeLabel(time, t.reserve)}</option>
+              ))}
+            </select>
+          </label>
+          <label className={label}>
+            {t.reserve.bbq.toUpperCase()}
+            <select className={select} value={draft.bbqPlan} onChange={(e) => setDraft({ ...draft, bbqPlan: e.target.value as AmenityPlan })}>
+              {AMENITY_PLANS.map((plan) => (
+                <option key={plan} value={plan}>{amenityPlanLabel(plan, t.reserve)}</option>
+              ))}
+            </select>
+          </label>
+          <label className={label}>
+            {t.reserve.sauna.toUpperCase()}
+            <select className={select} value={draft.saunaPlan} onChange={(e) => setDraft({ ...draft, saunaPlan: e.target.value as AmenityPlan })}>
+              {AMENITY_PLANS.map((plan) => (
+                <option key={plan} value={plan}>{amenityPlanLabel(plan, t.reserve)}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="border border-copper px-3 py-1.5 text-[10px] tracking-[0.2em] text-copper-bright transition-all hover:bg-copper hover:text-sumi-950 disabled:opacity-50"
+          >
+            {t.admin.savePlans.toUpperCase()}
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            className="text-[10px] tracking-[0.2em] text-paper-faint transition-colors hover:text-paper"
+          >
+            {t.admin.cancelEdit.toUpperCase()}
+          </button>
+          {failed && <span role="alert" className="text-xs text-copper-bright">{t.admin.savePlansError}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  if (parts.length === 0 && !editable) return null;
+  return (
+    <p className="mt-2 text-xs text-paper-dim">
+      {parts.join(" ・ ")}
+      {editable && (
+        <button
+          type="button"
+          onClick={startEditing}
+          className={`${parts.length ? "ml-3" : ""} text-[10px] tracking-[0.15em] text-copper-bright underline-offset-4 hover:underline`}
+        >
+          {t.admin.editPlans}
+        </button>
+      )}
+    </p>
+  );
 }
