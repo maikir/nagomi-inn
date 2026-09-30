@@ -70,7 +70,8 @@ Two implementations exist:
 
 ### Switching Supabase on
 
-1. **Database** — run `supabase/schema.sql` in the Supabase SQL editor once.
+1. **Database** — run every file in `supabase/migrations/`, in filename order, in the
+   Supabase SQL editor (see `supabase/README.md`).
 2. **Env vars** — copy `.env.example` to `.env.local` and paste the Project URL and
    anon key (Project Settings → API). Add the same two vars in Vercel.
 3. **Auth providers** — Supabase dashboard → Authentication:
@@ -94,7 +95,7 @@ expires unpaid after 30 min). Cancelled payments return to the reserve page with
 form intact.
 
 Setup:
-1. Run `supabase/stripe-ical-migration.sql` in the Supabase SQL editor.
+1. Run `supabase/migrations/20260720172646_stripe_payments_and_ical.sql` in the Supabase SQL editor.
    ⚠ After this migration, bookings REQUIRE payment — direct client confirmation is
    blocked at the database level. Do it when you're ready to set the env vars.
 2. Stripe dashboard (test mode first): copy the secret key; add a webhook endpoint
@@ -121,7 +122,7 @@ use the language saved on the reservation at checkout (`reservations.lang`,
 English or Japanese). Changing the site's display language afterward does not
 change the booking's email language. Demo bookings do not send emails.
 
-Run `supabase/reservation-language.sql` before deploying this version. Older
+Run `supabase/migrations/20260922193721_reservation_language.sql` before deploying this version. Older
 reservations keep a NULL language until it can be recovered from Stripe's Checkout
 metadata (or explicit Checkout locale). For a legacy cancellation without either,
 the current browser language is the fallback, then English. The recovered language
@@ -137,7 +138,7 @@ keeps this dependency-free. React Email is optional for more elaborate designs.
 1. Create a [Resend account](https://resend.com), add a domain you own, and verify
    it with the DNS records Resend supplies. Create an API key with sending access.
    Gmail can be the reply-to address, but cannot be your verified sender domain.
-2. Run `supabase/reservation-emails.sql` in the Supabase SQL editor after the
+2. Run `supabase/migrations/20260922185305_reservation_emails.sql` in the Supabase SQL editor after the
    existing payment migration. This adds a private record of each confirmation.
 3. Add the email settings from `.env.example` to `.env.local` for local testing
    and to Vercel for deployment:
@@ -187,7 +188,7 @@ and email transport, verify real Stripe signatures, and never send actual emails
 
 ## Cancellation emails and refund completion
 
-Before deploying this version, run `supabase/cancellation-emails.sql` after the
+Before deploying this version, run `supabase/migrations/20260922192919_cancellation_emails.sql` after the
 existing payment and email migrations. Add **`refund.created`, `refund.updated`,
 and `refund.failed`** to the existing Stripe webhook endpoint in each environment.
 Keep all four Checkout events enabled. The same Resend environment settings are

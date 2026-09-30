@@ -5,7 +5,7 @@ import { getSupabase } from "@/lib/supabase/client";
 
 /**
  * Supabase (Postgres) implementation — active once NEXT_PUBLIC_SUPABASE_URL /
- * NEXT_PUBLIC_SUPABASE_ANON_KEY are set (see supabase/schema.sql for the
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY are set (see supabase/migrations/20260705222859_initial_schema.sql for the
  * database side). Reservations require a signed-in user; RLS scopes reads and
  * cancellations to the reservation's owner. Availability comes from the
  * public `booked_ranges` view (dates only).

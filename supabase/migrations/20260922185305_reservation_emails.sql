@@ -1,4 +1,4 @@
--- Run after stripe-ical-migration.sql, before enabling reservation emails.
+-- Run after 20260720172646_stripe_payments_and_ical.sql, before enabling reservation emails.
 -- Contains guest data and immutable email payloads; service-role access only.
 create table if not exists public.reservation_confirmation_emails (
   reservation_id text primary key references public.reservations(id) on delete cascade,

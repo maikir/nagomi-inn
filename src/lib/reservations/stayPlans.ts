@@ -2,7 +2,7 @@
  * Stay plans the guest tells us at booking, so the hosts can prepare:
  * BBQ grill / barrel sauna use and an estimated arrival time. Fixed once
  * booked (guests contact the hosts to change them). Values mirror the DB
- * check constraints in supabase/stay-plans.sql.
+ * check constraints in supabase/migrations/20260925204339_stay_plans.sql.
  */
 
 export const AMENITY_PLANS = ["yes", "no", "undecided"] as const;

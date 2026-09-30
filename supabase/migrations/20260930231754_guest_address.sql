@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — guest address (guest registry, 旅館業法) ─────────────────
--- Run AFTER server-only-bookings.sql, and BEFORE deploying the code that uses
+-- Run AFTER 20260930230049_server_only_bookings.sql, and BEFORE deploying the code that uses
 -- it (checkout inserts these columns). Legacy rows stay NULL.
 
 alter table public.reservations add column if not exists country text

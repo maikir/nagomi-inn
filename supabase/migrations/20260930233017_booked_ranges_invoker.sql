@@ -1,6 +1,6 @@
 -- ─── NAGOMI INN — booked_ranges without a SECURITY DEFINER view ──────────────
 -- Clears Supabase's "Security Definer View" lint on public.booked_ranges.
--- Run any time AFTER stripe-ical-migration.sql. No app deploy needed: the view
+-- Run any time AFTER 20260720172646_stripe_payments_and_ical.sql. No app deploy needed: the view
 -- keeps its name and columns (check_in, check_out), so the site is unaffected.
 --
 -- Why the view needed elevated rights at all: visitors must see which dates

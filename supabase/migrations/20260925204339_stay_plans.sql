@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — stay plans + welcome email ────────────────────────────────
--- Run AFTER reservation-emails.sql and reservation-language.sql, and BEFORE
+-- Run AFTER 20260922185305_reservation_emails.sql and 20260922193721_reservation_language.sql, and BEFORE
 -- deploying the code that uses it (checkout inserts these columns).
 --
 -- Guests tell us at booking whether they plan to use the BBQ grill / barrel

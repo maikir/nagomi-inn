@@ -1,4 +1,4 @@
--- Run AFTER stripe-ical-migration.sql and reservation-emails.sql, before deploying.
+-- Run AFTER 20260720172646_stripe_payments_and_ical.sql and 20260922185305_reservation_emails.sql, before deploying.
 alter table public.reservations add column if not exists cancellation_state text
   check (cancellation_state in ('processing', 'failed', 'completed'));
 

@@ -1,6 +1,6 @@
 -- ─── Raise max guests: 16 → 18 ───────────────────────────────────────────────
 -- One-time migration for databases created before this change.
--- (schema.sql already says 18 for fresh installs; keep site.pricing.maxGuests
+-- (20260705222859_initial_schema.sql already says 18 for fresh installs; keep site.pricing.maxGuests
 -- in src/config/site.ts in sync with this constraint.)
 
 alter table public.reservations

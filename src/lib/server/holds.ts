@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Pending holds keep dates off the market while a guest is in Stripe Checkout
  * (at most 30 minutes). Guardrails, so they can't be abused or get stuck:
- *  • only the server creates them (supabase/server-only-bookings.sql);
+ *  • only the server creates them (supabase/migrations/20260930230049_server_only_bookings.sql);
  *  • each guest has at most one open hold (releaseGuestHolds);
  *  • a hold that never got a Checkout session is released after an hour
  *    (releaseOrphanedHolds) — without a session it can never be paid.

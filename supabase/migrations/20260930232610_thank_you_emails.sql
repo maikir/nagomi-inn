@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — post-stay thank-you emails ────────────────────────────────
--- Run AFTER reservation-emails.sql, BEFORE deploying the code that uses it
+-- Run AFTER 20260922185305_reservation_emails.sql, BEFORE deploying the code that uses it
 -- (the daily job reads and writes this table).
 -- Same outbox shape as the other reservation email tables.
 

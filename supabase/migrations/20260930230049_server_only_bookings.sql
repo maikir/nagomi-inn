@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — reservations are created by the server only ───────────────
--- Run AFTER stripe-ical-migration.sql. Safe to run before or after deploying
+-- Run AFTER 20260720172646_stripe_payments_and_ical.sql. Safe to run before or after deploying
 -- the code that goes with it (checkout already inserts with the service role).
 --
 -- Previously a signed-in guest could insert 'pending' rows straight through the

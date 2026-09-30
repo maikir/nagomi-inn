@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — coupon codes ─────────────────────────────────────────────
--- Run AFTER stay-plans.sql, and BEFORE deploying the code that uses it
+-- Run AFTER 20260925204339_stay_plans.sql, and BEFORE deploying the code that uses it
 -- (checkout records these columns when a coupon is used).
 --
 -- Coupons themselves live in Stripe (promotion codes). We only record which
