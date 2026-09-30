@@ -10,11 +10,13 @@ import { reservationLanguage } from "@/lib/reservations/language";
 import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
 import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
 import { normalizeCouponCode, quoteCoupon, type CouponQuote } from "@/lib/server/coupons";
+import { releaseGuestHolds, releaseOrphanedHolds } from "@/lib/server/holds";
 
 /**
  * POST /api/checkout
  * Creates a 'pending' reservation (holding the dates) and a Stripe Checkout
- * session for it. The price is computed HERE, server-side — the client's
+ * session for it. Only this route creates reservations: it verifies the
+ * guest, then inserts with the service role (guests have no INSERT grant). The price is computed HERE, server-side — the client's
  * total is display-only. The webhook confirms the reservation on payment.
  */
 
@@ -39,6 +41,7 @@ type Body = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NOTES_MAX = 1000;
 
 export async function POST(req: Request) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -55,6 +58,8 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser(token);
   if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  const admin = getSupabaseAdmin();
+  if (!admin) return NextResponse.json({ error: "PAYMENTS_NOT_CONFIGURED" }, { status: 501 });
 
   // ── validate ──────────────────────────────────────────────────────────────
   const body = (await req.json().catch(() => ({}))) as Body;
@@ -86,9 +91,6 @@ export async function POST(req: Request) {
   let quote: CouponQuote | null = null;
   if (body.couponCode !== undefined && body.couponCode !== "") {
     const code = normalizeCouponCode(body.couponCode);
-    // Recording the discounted total needs the service role (see below).
-    const admin = getSupabaseAdmin();
-    if (!admin) return NextResponse.json({ error: "PAYMENTS_NOT_CONFIGURED" }, { status: 501 });
     try {
       quote = code ? await quoteCoupon(stripe, code, total) : null;
     } catch (e) {
@@ -98,6 +100,20 @@ export async function POST(req: Request) {
     if (!quote) return NextResponse.json({ error: "COUPON_INVALID" }, { status: 400 });
   }
 
+  // ── one open hold per guest ───────────────────────────────────────────────
+  // Also frees the guest's own earlier hold, so retrying the same dates after
+  // backing out of Stripe works instead of reporting them unavailable.
+  try {
+    if (!(await releaseGuestHolds(admin, stripe, user.id))) {
+      return NextResponse.json({ error: "PAYMENT_IN_PROGRESS" }, { status: 409 });
+    }
+  } catch (e) {
+    console.error("releasing previous hold failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
+  }
+  // Best-effort: the daily cron sweeps these too.
+  await releaseOrphanedHolds(admin).catch((e) => console.error("orphaned hold sweep failed:", e.message));
+
   // ── freshen OTA calendars if stale, then hold the dates ───────────────────
   try {
     await syncExternalCalendars({ ifStaleMinutes: 15 });
@@ -105,16 +121,17 @@ export async function POST(req: Request) {
     // OTA feed hiccups must not block direct bookings; DB constraints still guard.
   }
 
-  const { data: reservation, error: insertError } = await supabase
+  const { data: reservation, error: insertError } = await admin
     .from("reservations")
     .insert({
+      user_id: user.id,
       check_in: checkIn,
       check_out: checkOut,
       guests,
       name: name.trim(),
       email: email.trim(),
       phone: body.phone ? normalizeGuestPhone(body.phone) || null : null,
-      notes: body.notes?.trim() || null,
+      notes: body.notes?.trim().slice(0, NOTES_MAX) || null,
       total_yen: total,
       status: "pending",
       lang,
@@ -129,7 +146,6 @@ export async function POST(req: Request) {
   if (insertError) {
     const code = (insertError as { code?: string }).code;
     if (code === "23P01") return NextResponse.json({ error: "UNAVAILABLE" }, { status: 409 });
-    if (code === "42501") return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     return NextResponse.json({ error: "DB_ERROR" }, { status: 500 });
   }
 
@@ -166,38 +182,33 @@ export async function POST(req: Request) {
       locale: ja ? "ja" : "en",
     });
 
-    if (quote) {
-      // The webhook and refunds only accept a charge equal to total_yen, so the
-      // amount Stripe will actually charge must be recorded before the guest can
-      // pay. If that fails, kill the session rather than take an unconfirmable payment.
-      const amountTotal = session.amount_total;
-      const { error: totalError } = amountTotal == null
-        ? { error: new Error("Stripe returned no amount_total") }
-        : await getSupabaseAdmin()!
-          .from("reservations")
-          .update({
-            stripe_session_id: session.id,
+    // Record the session before the guest can pay: the webhook and refunds only
+    // accept a charge equal to total_yen (Stripe's discounted amount when a
+    // coupon is used), and the orphan sweep releases holds without a session.
+    // If this fails, kill the session rather than take an unconfirmable payment.
+    const amountTotal = session.amount_total;
+    const { error: recordError } = quote && amountTotal == null
+      ? { error: new Error("Stripe returned no amount_total") }
+      : await admin
+        .from("reservations")
+        .update({
+          stripe_session_id: session.id,
+          ...(quote && amountTotal != null && {
             total_yen: amountTotal,
             coupon_code: quote.code,
             discount_yen: total - amountTotal,
-          })
-          .eq("id", reservation.id);
-      if (totalError) {
-        await stripe.checkout.sessions.expire(session.id).catch(() => {});
-        throw totalError;
-      }
-    } else {
-      // Best-effort back-reference for support/refunds.
-      await getSupabaseAdmin()
-        ?.from("reservations")
-        .update({ stripe_session_id: session.id })
+          }),
+        })
         .eq("id", reservation.id);
+    if (recordError) {
+      await stripe.checkout.sessions.expire(session.id).catch(() => {});
+      throw recordError;
     }
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
     // Stripe refused — release the hold so the dates aren't stuck.
-    await getSupabaseAdmin()?.from("reservations").update({ status: "cancelled" }).eq("id", reservation.id);
+    await admin.from("reservations").update({ status: "cancelled" }).eq("id", reservation.id);
     console.error("stripe checkout error:", e);
     // e.g. the single-use code was just redeemed by someone else.
     if (quote && e instanceof Stripe.errors.StripeInvalidRequestError) {

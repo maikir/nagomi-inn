@@ -294,6 +294,8 @@ export default function ReservePage() {
           setStep("dates");
         } else if (json.error === "AUTH_REQUIRED") {
           router.push("/login?next=/reserve");
+        } else if (json.error === "PAYMENT_IN_PROGRESS") {
+          setError({ key: "reserve.errorPaymentInProgress" });
         } else if (json.error === "COUPON_INVALID") {
           setCoupon(null);
           setCouponError("invalid");
@@ -461,6 +463,7 @@ export default function ReservePage() {
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
+                    maxLength={1000}
                     placeholder={t.reserve.notesPlaceholder}
                     rows={4}
                     className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper placeholder:text-paper-faint/60 focus:border-copper focus:outline-none"

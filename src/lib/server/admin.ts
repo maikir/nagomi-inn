@@ -26,6 +26,8 @@ export async function authorizeAdmin(
   const asUser = getSupabaseAsUser(token);
   const user = asUser ? (await asUser.auth.getUser(token)).data.user : null;
   if (!user) return { ok: false, status: 401 };
-  if (!isAdminEmail(user.email)) return { ok: false, status: 403 };
+  // The allowlist matches by email, so the email must be proven: otherwise an
+  // unverified sign-up using an owner's address would pass.
+  if (!user.email_confirmed_at || !isAdminEmail(user.email)) return { ok: false, status: 403 };
   return { ok: true, email: user.email! };
 }
