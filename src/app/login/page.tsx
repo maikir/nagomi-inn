@@ -7,6 +7,13 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/LogoMark";
 
+/**
+ * Social sign-in buttons to show. Each provider must be enabled in Supabase
+ * first (Authentication → Providers, in both projects), or its button errors.
+ * Email + password is always shown. To bring Google back: ["google"].
+ */
+const OAUTH_PROVIDERS: ("google" | "apple")[] = [];
+
 export default function LoginPage() {
   return (
     <Suspense>
@@ -98,29 +105,29 @@ function LoginInner() {
         </p>
       ) : (
         <div className="mt-10">
-          {/* OAuth */}
-          <div className="space-y-3">
-            <button
-              onClick={() => withOAuth("google")}
-              className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
-            >
-              <GoogleMark />
-              {t.auth.google}
-            </button>
-            <button
-              onClick={() => withOAuth("apple")}
-              className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
-            >
-              <AppleMark />
-              {t.auth.apple}
-            </button>
-          </div>
+          {/* OAuth (only providers switched on in OAUTH_PROVIDERS) */}
+          {OAUTH_PROVIDERS.length > 0 && (
+            <>
+              <div className="space-y-3">
+                {OAUTH_PROVIDERS.map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => withOAuth(provider)}
+                    className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
+                  >
+                    {provider === "google" ? <GoogleMark /> : <AppleMark />}
+                    {provider === "google" ? t.auth.google : t.auth.apple}
+                  </button>
+                ))}
+              </div>
 
-          <div className="my-8 flex items-center gap-4">
-            <span className="h-px flex-1 bg-paper/15" />
-            <span className="text-[11px] tracking-[0.25em] text-paper-faint">{t.auth.or.toUpperCase()}</span>
-            <span className="h-px flex-1 bg-paper/15" />
-          </div>
+              <div className="my-8 flex items-center gap-4">
+                <span className="h-px flex-1 bg-paper/15" />
+                <span className="text-[11px] tracking-[0.25em] text-paper-faint">{t.auth.or.toUpperCase()}</span>
+                <span className="h-px flex-1 bg-paper/15" />
+              </div>
+            </>
+          )}
 
           {/* Email + password */}
           <form onSubmit={submit} className="space-y-5">
