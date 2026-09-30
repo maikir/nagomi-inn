@@ -16,6 +16,11 @@ export const site = {
   taglineLockup: "田舎民泊",
   url: "https://www.nagomi-inn-miyazaki.com",
 
+  /** Where the post-stay thank-you email asks guests to leave a review: the
+   *  inn on Google Maps. For a link that opens the review box directly, use
+   *  the "Ask for reviews" link from the Google Business Profile instead. */
+  reviewUrl: "https://maps.google.com/?cid=14849516348918863411",
+
   contact: {
     email: "nagomi.inn.miyazaki@gmail.com",
     phone: "+81 70-6461-0434",

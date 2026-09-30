@@ -232,13 +232,60 @@ export function welcomeEmail(reservation: WelcomeReservation, lang: "en" | "ja",
   };
 }
 
-type EmailKind = "confirmation" | "cancellation" | "welcome";
+/** Post-stay thank-you with a Google review link; sent by the daily job after check-out. */
+export function thankYouEmail(reservation: PaidReservation, lang: "en" | "ja", config: EmailConfig) {
+  const ja = lang === "ja";
+  const title = ja ? "ご宿泊ありがとうございました" : "Thank you for staying with us";
+  const greeting = ja ? `${reservation.name} 様` : `Hello ${reservation.name},`;
+  const summary = ja
+    ? `ご予約番号 ${reservation.id}｜${reservation.check_in} 〜 ${reservation.check_out}`
+    : `Booking ${reservation.id} · ${reservation.check_in} → ${reservation.check_out}`;
+  const before = ja
+    ? [
+        "このたびは田舎民泊「和」にご宿泊いただき、誠にありがとうございました。",
+        "ゆっくりとお過ごしいただけましたでしょうか。無事にご帰宅されていることを願っております。",
+        "もしよろしければ、ご滞在のご感想をGoogleのクチコミでお聞かせいただけますと幸いです。家族で営む小さな宿にとって、何よりの励みになります。",
+      ]
+    : [
+        "Thank you so much for staying with us at Nagomi Inn Miyazaki.",
+        "We hope you had a relaxing time, and that you've made it home safely.",
+        "If you have a moment, we'd be grateful if you could share your experience in a Google review. It means a great deal to a small family-run inn like ours.",
+      ];
+  const button = ja ? "Googleでクチコミを書く" : "Leave a Google review";
+  const after = ja
+    ? "またいつか、宮崎の地でお会いできますことを心より楽しみにしております。"
+    : "We hope to welcome you back to Miyazaki someday.";
+  const signoff = ja ? ["田舎民泊「和」", "Nagomi Inn Miyazaki"] : ["Warm regards,", "Nagomi Inn Miyazaki (田舎民泊「和」)"];
+
+  const p = (text: string) => `<p style="line-height:1.8;margin:0 0 14px">${escapeHtml(text)}</p>`;
+  const html = `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"></head><body style="margin:0;background:#f7f5f0;color:#292b25;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:#ffffff">`
+    + emailHeader(title, config.logoUrl)
+    + `<p style="margin:0 0 6px">${escapeHtml(greeting)}</p><p style="margin:0 0 22px;font-size:13px;color:#7a776c">${escapeHtml(summary)}</p>`
+    + before.map(p).join("")
+    + `<p style="margin:22px 0 26px"><a href="${escapeHtml(site.reviewUrl)}" style="display:inline-block;padding:12px 22px;border:1px solid #a8683a;color:#a8683a;text-decoration:none;letter-spacing:1px">${escapeHtml(button)}</a></p>`
+    + p(after)
+    + `<div style="margin-top:28px;padding-top:16px;border-top:1px solid #e6e5df"><p style="line-height:1.8;margin:0">${signoff.map(escapeHtml).join("<br>")}</p></div>`
+    + `</div></body></html>`;
+  const text = [title, greeting, summary, ...before, `${button}: ${site.reviewUrl}`, after, signoff.join("\n")].join("\n\n");
+
+  return {
+    from: config.from,
+    to: [reservation.email],
+    reply_to: config.replyTo,
+    subject: ja ? `ご宿泊ありがとうございました — 田舎民泊「和」（${reservation.id}）` : `Thank you for staying at Nagomi (${reservation.id})`,
+    text,
+    html,
+  };
+}
+
+type EmailKind = "confirmation" | "cancellation" | "welcome" | "thankyou";
 
 // Tables and idempotency-key prefixes are part of the retry contract: keep them stable.
 const OUTBOX: Record<EmailKind, { table: string; event: string }> = {
   confirmation: { table: "reservation_confirmation_emails", event: "reservation-confirmed" },
   cancellation: { table: "reservation_cancellation_emails", event: "reservation-cancelled" },
   welcome: { table: "reservation_welcome_emails", event: "reservation-welcome" },
+  thankyou: { table: "reservation_thankyou_emails", event: "reservation-thankyou" },
 };
 
 /** Called only after a signed Stripe event verifies payment and the DB confirms the stay. */
@@ -255,6 +302,10 @@ export async function sendWelcomeEmail(admin: SupabaseClient, reservation: Welco
   return deliverReservationEmail(admin, "welcome", reservation.id, (config) => welcomeEmail(reservation, lang, config));
 }
 
+export async function sendThankYouEmail(admin: SupabaseClient, reservation: PaidReservation, lang: "en" | "ja") {
+  return deliverReservationEmail(admin, "thankyou", reservation.id, (config) => thankYouEmail(reservation, lang, config));
+}
+
 async function deliverReservationEmail(
   admin: SupabaseClient,
   kind: EmailKind,
@@ -263,8 +314,10 @@ async function deliverReservationEmail(
 ) {
   if (process.env.RESERVATION_EMAILS_ENABLED !== "true") return;
   const apiKey = emailSetting(process.env.RESEND_API_KEY);
-  // The welcome note may come from a personal sender name; defaults to the booking sender.
-  const from = (kind === "welcome" && emailSetting(process.env.WELCOME_EMAIL_FROM)) || emailSetting(process.env.RESERVATION_EMAIL_FROM);
+  // The hosts' own notes (welcome, thank-you) may use a friendlier sender name;
+  // defaults to the booking sender.
+  const personal = kind === "welcome" || kind === "thankyou";
+  const from = (personal && emailSetting(process.env.WELCOME_EMAIL_FROM)) || emailSetting(process.env.RESERVATION_EMAIL_FROM);
   const replyTo = emailSetting(process.env.RESERVATION_EMAIL_REPLY_TO);
   const address = emailSetting(process.env.HOTEL_ADDRESS);
   if (!apiKey || !from || !replyTo || !address) throw new Error("Reservation email configuration is incomplete");
