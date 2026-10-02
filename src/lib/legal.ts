@@ -24,6 +24,7 @@ export const OPERATOR = {
   responsible: "岡元　和也",
   address: "大阪府岸和田市宮前町22-27",
   license: "シレイ24044-1003-2",
+  representative: "岡元　健次",
 };
 
 /** Price line built from the live pricing, so it always matches what checkout charges. */
@@ -58,7 +59,7 @@ export function commerceDisclosure(lang: "en" | "ja", t: Dictionary, pricing: Pr
         ["旅館業許可番号", OPERATOR.license],
         ["販売価格", priceLine(pricing, true)],
         ["商品代金以外の必要料金", "なし（BBQをご利用の場合、炭・食材はお客様ご自身でご用意ください）"],
-        ["お支払い方法", "クレジットカード（Stripeによる決済）"],
+        ["お支払い方法", "クレジットカード（JCB等）、Apple Pay、Link、分割払い（Stripeによる決済）"],
         ["お支払い時期", "ご予約時にお支払いいただきます。お支払いの確認をもってご予約確定となります。"],
         ["サービスの提供時期", `ご予約いただいた宿泊日（チェックイン ${site.checkIn}〜／チェックアウト 〜${site.checkOut}）`],
         ["キャンセル・返金", `${policy}。返金はお支払いに使用されたクレジットカードへ行います。キャンセルは「予約の確認」ページ、またはメール・お電話にて承ります。`],
@@ -72,7 +73,7 @@ export function commerceDisclosure(lang: "en" | "ja", t: Dictionary, pricing: Pr
         ["Hotel Business Act license no.", OPERATOR.license],
         ["Price", priceLine(pricing, false)],
         ["Other charges", "None (for the BBQ, please bring your own charcoal and food)."],
-        ["Payment methods", "Credit card (processed by Stripe)."],
+        ["Payment methods", "Credit cards (including JCB), Apple Pay, Link and Japanese card installments, processed by Stripe."],
         ["Payment timing", "At the time of booking. Your booking is confirmed once payment is received."],
         ["Service period", `The dates you booked (check-in from ${site.checkIn}, check-out by ${site.checkOut}).`],
         ["Cancellation & refunds", `${policy}. Refunds go back to the credit card used. Cancel on the My reservations page, or contact us by email or phone.`],
@@ -89,7 +90,7 @@ export function privacyPolicy(lang: "en" | "ja") {
   const sections: LegalSection[] = ja
     ? [
         { heading: "1. 事業者", paragraphs: [
-          `${OPERATOR.company}（所在地：${OPERATOR.address}、代表者：【change_here：代表取締役のお名前】）（以下「当宿」）は、田舎民泊「和」Nagomi Inn Miyazaki のウェブサイトおよびご予約サービスにおいて、お客様の個人情報を以下のとおり取り扱います。`,
+          `${OPERATOR.company}（所在地：${OPERATOR.address}、代表取締役：${OPERATOR.representative}）（以下「当宿」）は、田舎民泊「和」Nagomi Inn Miyazaki のウェブサイトおよびご予約サービスにおいて、お客様の個人情報を以下のとおり取り扱います。`,
         ] },
         { heading: "2. 取得する情報", list: [
           "お名前、メールアドレス、電話番号、ご住所（国・地域、郵便番号を含む）",
@@ -135,7 +136,7 @@ export function privacyPolicy(lang: "en" | "ja") {
       ]
     : [
         { heading: "1. Who we are", paragraphs: [
-          `${OPERATOR.company} (${OPERATOR.address}; representative: [change_here: company representative's name]) ("we") handles your personal information on the Nagomi Inn Miyazaki (田舎民泊「和」) website and booking service as described below.`,
+          `${OPERATOR.company} (${OPERATOR.address}; representative director: ${OPERATOR.representative}) ("we") handles your personal information on the Nagomi Inn Miyazaki (田舎民泊「和」) website and booking service as described below.`,
         ] },
         { heading: "2. What we collect", list: [
           "Your name, email address, phone number and address (including country/region and postal code)",
