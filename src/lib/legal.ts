@@ -183,7 +183,7 @@ export function privacyPolicy(lang: "en" | "ja") {
   return {
     title: ja ? "プライバシーポリシー" : "Privacy policy",
     note: ja ? undefined : "This English translation is provided for convenience; the Japanese version takes precedence.",
-    effective: ja ? "制定日：【change_here：公開日】" : "Effective: [change_here: launch date]",
+    effective: ja ? "制定日：2026年10月3日" : "Effective: October 3, 2026",
     sections,
   };
 }
