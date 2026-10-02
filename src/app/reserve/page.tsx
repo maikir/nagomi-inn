@@ -567,6 +567,13 @@ export default function ReservePage() {
                   />
                 </label>
               </div>
+              <p className="text-xs leading-relaxed text-paper-faint">
+                {t.reserve.privacyNote}{" "}
+                <Link href="/privacy" target="_blank" className="text-copper-bright underline-offset-4 hover:underline">
+                  {t.footer.privacy}
+                </Link>
+                {lang === "en" ? "." : ""}
+              </p>
             </div>
 
             <div className="mt-10 border-t border-paper/10 pt-8">

@@ -13,10 +13,15 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
 ];
 
+// Only production may appear in search results: staging and preview
+// deployments (VERCEL_ENV "preview", or unset locally) are marked noindex.
+const isProduction = process.env.VERCEL_ENV === "production";
+const indexingHeaders = isProduction ? [] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [{ source: "/:path*", headers: [...securityHeaders, ...indexingHeaders] }];
   },
 };
 

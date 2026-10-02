@@ -107,8 +107,12 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-14 border-t border-paper/10 pt-6 text-xs tracking-wider text-paper-faint">
-          {t.footer.legal.replace("{year}", String(new Date().getFullYear()))}
+        <div className="mt-14 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-paper/10 pt-6 text-xs tracking-wider text-paper-faint">
+          <span>{t.footer.legal.replace("{year}", String(new Date().getFullYear()))}</span>
+          <span className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/tokushoho" className="transition-colors hover:text-paper">{t.footer.tokushoho}</Link>
+            <Link href="/privacy" className="transition-colors hover:text-paper">{t.footer.privacy}</Link>
+          </span>
         </div>
       </div>
     </footer>

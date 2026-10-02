@@ -101,6 +101,8 @@ export const en = {
     explore: "Explore",
     instagramQr: "Follow us on Instagram!",
     legal: "© {year} Nagomi Inn Miyazaki. All rights reserved.",
+    tokushoho: "Commercial transactions disclosure",
+    privacy: "Privacy policy",
   },
 
   reserve: {
@@ -133,6 +135,7 @@ export const en = {
     address: "Address",
     addressPlaceholder: "Street, city, state / province, apartment",
     addressHint: "Japan's Hotel Business Act requires us to record each guest's address.",
+    privacyNote: "We handle your details as described in our",
     errorCountry: "Please select your country or region.",
     errorPostal: "Please check your postal code.",
     errorAddress: "Please enter your full address.",
@@ -430,6 +433,8 @@ export const ja: typeof en = {
     explore: "メニュー",
     instagramQr: "Instagramでフォローしてね！",
     legal: "© {year} 田舎民泊 和 Nagomi Inn Miyazaki",
+    tokushoho: "特定商取引法に基づく表記",
+    privacy: "プライバシーポリシー",
   },
 
   reserve: {
@@ -462,6 +467,7 @@ export const ja: typeof en = {
     address: "住所",
     addressPlaceholder: "都道府県・市区町村・番地・建物名・部屋番号",
     addressHint: "旅館業法に基づき、宿泊者名簿にご住所を記載させていただきます。",
+    privacyNote: "ご入力いただいた情報は、次の方針に従って取り扱います：",
     errorCountry: "国・地域を選択してください。",
     errorPostal: "郵便番号をご確認ください（例：123-4567）。",
     errorAddress: "ご住所を入力してください。",
