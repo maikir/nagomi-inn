@@ -1,5 +1,6 @@
-import { site } from "@/config/site";
+import { site, formatYen } from "@/config/site";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
+import type { Pricing } from "@/lib/pricing";
 
 /**
  * Legal pages: 特定商取引法に基づく表記 and the privacy policy.
@@ -17,38 +18,64 @@ export type CommerceRow = [label: string, value: string];
 /** Matches the owner-to-fill markers, so pages can highlight them. */
 export const PLACEHOLDER = /【change_here[^】]*】|\[change_here[^\]]*\]/g;
 
-export function commerceDisclosure(lang: "en" | "ja", t: Dictionary) {
+/** The operator, as given by the owner for the 特商法 disclosure. */
+export const OPERATOR = {
+  company: "株式会社岡元工務店",
+  responsible: "岡元　和也",
+  address: "大阪府岸和田市宮前町22-27",
+  license: "シレイ24044-1003-2",
+};
+
+/** Price line built from the live pricing, so it always matches what checkout charges. */
+function priceLine(p: Pricing, ja: boolean): string {
+  const extraFrom = p.includedGuests + 1;
+  if (ja) {
+    const parts = [
+      `基本料金 ${formatYen(p.baseNightly)}／泊（${p.minGuests}〜${p.includedGuests}名様）`,
+      `${extraFrom}名様以降は1名様につき ${formatYen(p.perGuestNightly)}／泊`,
+      ...(p.cleaningFee > 0 ? [`清掃費 ${formatYen(p.cleaningFee)}／1滞在`] : []),
+    ];
+    return `${parts.join("、")}（表示価格はすべて税込）`;
+  }
+  const parts = [
+    `Base rate ${formatYen(p.baseNightly)} per night (${p.minGuests}–${p.includedGuests} guests)`,
+    `from the ${extraFrom}th guest, ${formatYen(p.perGuestNightly)} per guest per night`,
+    ...(p.cleaningFee > 0 ? [`cleaning fee ${formatYen(p.cleaningFee)} per stay`] : []),
+  ];
+  return `${parts.join("; ")}. All prices include tax.`;
+}
+
+export function commerceDisclosure(lang: "en" | "ja", t: Dictionary, pricing: Pricing) {
   const ja = lang === "ja";
-  const onRequest = ja ? "請求があった場合には遅滞なく開示いたします" : "disclosed without delay upon request";
   const policy = [t.reserve.policyFree, t.reserve.policyHalf, t.reserve.policyFull].join(ja ? "／" : "; ");
   const rows: CommerceRow[] = ja
     ? [
-        ["販売業者", `【change_here：事業者名（個人の場合は氏名）、または「${onRequest}」】`],
-        ["運営統括責任者", `【change_here：責任者の氏名、または「${onRequest}」】`],
-        ["所在地", `【change_here：住所、または「${onRequest}」】`],
+        ["販売業者", OPERATOR.company],
+        ["運営統括責任者", OPERATOR.responsible],
+        ["所在地", OPERATOR.address],
         ["電話番号", site.contact.phone],
         ["メールアドレス", site.contact.email],
-        ["営業許可等", "【change_here：旅館業許可番号 または 住宅宿泊事業の届出番号】"],
-        ["販売価格", "ご予約ページに表示される宿泊料金（1棟貸切・人数と泊数により算出）【change_here：税込表示かどうかをご確認ください】"],
-        ["商品代金以外の必要料金", "なし。BBQの炭・食材はお客様ご自身でご用意ください。【change_here：その他の料金があれば追記】"],
-        ["お支払い方法", "クレジットカード等（Stripeによる決済）【change_here：コンビニ払い等を有効にした場合は追記】"],
-        ["お支払い時期", "ご予約時にお支払いいただきます（コンビニ払い等の場合は、お支払い期限まで）。お支払いの確認をもってご予約確定となります。"],
+        ["旅館業許可番号", OPERATOR.license],
+        ["販売価格", priceLine(pricing, true)],
+        ["商品代金以外の必要料金", "なし（BBQをご利用の場合、炭・食材はお客様ご自身でご用意ください）"],
+        ["お支払い方法", "クレジットカード（Stripeによる決済）"],
+        ["お支払い時期", "ご予約時にお支払いいただきます。お支払いの確認をもってご予約確定となります。"],
         ["サービスの提供時期", `ご予約いただいた宿泊日（チェックイン ${site.checkIn}〜／チェックアウト 〜${site.checkOut}）`],
-        ["キャンセル・返金", `${policy}。返金はお支払いに使用された方法で行います。キャンセルは「予約の確認」ページ、またはメール・お電話にて承ります。`],
+        ["キャンセル・返金", `${policy}。返金はお支払いに使用されたクレジットカードへ行います。キャンセルは「予約の確認」ページ、またはメール・お電話にて承ります。`],
       ]
     : [
-        ["Seller", `[change_here: business name (personal name if a sole proprietor), or "${onRequest}"]`],
-        ["Person responsible", `[change_here: name, or "${onRequest}"]`],
-        ["Address", `[change_here: address, or "${onRequest}"]`],
+        ["Seller", OPERATOR.company],
+        ["Person responsible", OPERATOR.responsible],
+        ["Address", OPERATOR.address],
         ["Phone", site.contact.phone],
         ["Email", site.contact.email],
-        ["License / registration", "[change_here: Hotel Business Act license number or private-lodging registration number]"],
-        ["Price", "The amount shown on the booking page (whole property, based on nights and guests) [change_here: confirm whether prices include consumption tax]"],
-        ["Other charges", "None. Please bring your own charcoal and food for the BBQ. [change_here: add any other charges]"],
-        ["Payment methods", "Credit card and other methods via Stripe [change_here: add convenience-store payment etc. if enabled]"],
-        ["Payment timing", "At the time of booking (or by the payment deadline for convenience-store payment). Your booking is confirmed once payment is received."],
+        ["Hotel Business Act license no.", OPERATOR.license],
+        ["Price", priceLine(pricing, false)],
+        ["Other charges", "None (for the BBQ, please bring your own charcoal and food)."],
+        ["Payment methods", "Credit card (processed by Stripe)."],
+        ["Payment timing", "At the time of booking. Your booking is confirmed once payment is received."],
         ["Service period", `The dates you booked (check-in from ${site.checkIn}, check-out by ${site.checkOut}).`],
-        ["Cancellation & refunds", `${policy}. Refunds go back to the original payment method. Cancel on the My reservations page, or contact us by email or phone.`],
+        ["Cancellation & refunds", `${policy}. Refunds go back to the credit card used. Cancel on the My reservations page, or contact us by email or phone.`],
       ];
   return {
     title: ja ? "特定商取引法に基づく表記" : "Specified Commercial Transactions Act disclosure",
@@ -62,7 +89,7 @@ export function privacyPolicy(lang: "en" | "ja") {
   const sections: LegalSection[] = ja
     ? [
         { heading: "1. 事業者", paragraphs: [
-          "【change_here：事業者名（個人の場合は氏名）】（以下「当宿」）は、田舎民泊「和」Nagomi Inn Miyazaki のウェブサイトおよびご予約サービスにおいて、お客様の個人情報を以下のとおり取り扱います。",
+          `${OPERATOR.company}（所在地：${OPERATOR.address}、代表者：【change_here：代表取締役のお名前】）（以下「当宿」）は、田舎民泊「和」Nagomi Inn Miyazaki のウェブサイトおよびご予約サービスにおいて、お客様の個人情報を以下のとおり取り扱います。`,
         ] },
         { heading: "2. 取得する情報", list: [
           "お名前、メールアドレス、電話番号、ご住所（国・地域、郵便番号を含む）",
@@ -108,7 +135,7 @@ export function privacyPolicy(lang: "en" | "ja") {
       ]
     : [
         { heading: "1. Who we are", paragraphs: [
-          "[change_here: business name (personal name if a sole proprietor)] (\"we\") handles your personal information on the Nagomi Inn Miyazaki (田舎民泊「和」) website and booking service as described below.",
+          `${OPERATOR.company} (${OPERATOR.address}; representative: [change_here: company representative's name]) ("we") handles your personal information on the Nagomi Inn Miyazaki (田舎民泊「和」) website and booking service as described below.`,
         ] },
         { heading: "2. What we collect", list: [
           "Your name, email address, phone number and address (including country/region and postal code)",

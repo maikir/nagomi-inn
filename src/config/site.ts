@@ -38,12 +38,12 @@ export const site = {
     baseNightly: 80_000,
     /** Guests included in the base rate. */
     includedGuests: 8,
-    /** 9名以上 ¥5,000/人 per night. */
-    perGuestNightly: 5_000,
-    /** No separate cleaning fee — included in the nightly rate. */
-    cleaningFee: 0,
+    /** 9名以降 ¥8,000/人 per night. */
+    perGuestNightly: 8_000,
+    /** ¥8,000 per stay. */
+    cleaningFee: 8_000,
     minGuests: 2,
-    maxGuests: 18, // ¥80,000〜¥130,000/1泊
+    maxGuests: 18, // ¥80,000〜¥160,000/1泊 (+ cleaning). Prices include tax.
     minNights: 1,
     maxNights: 14,
   },
