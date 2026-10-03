@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { sendReservationConfirmation, sendWelcomeEmail } from "@/lib/server/reservationEmail";
+import { applyCancellationRefund } from "@/lib/server/cancellation";
+import { reservationLanguage } from "@/lib/reservations/language";
 
 /**
  * POST /api/stripe-webhook
  * Stripe → us. Confirms reservations on payment; frees held dates when a
  * checkout session expires unpaid. Configure the endpoint in the Stripe
- * dashboard (events: checkout.session.completed, checkout.session.expired)
+ * dashboard (events: checkout.session.completed, checkout.session.expired,
+ * checkout.session.async_payment_succeeded, checkout.session.async_payment_failed,
+ * refund.created, refund.updated, refund.failed)
  * and put its signing secret in STRIPE_WEBHOOK_SECRET.
  */
 
@@ -31,14 +36,54 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid signature" }, { status: 400 });
   }
 
-  if (event.type === "checkout.session.completed" || event.type === "checkout.session.expired") {
+  if (event.type === "refund.created" || event.type === "refund.updated" || event.type === "refund.failed") {
+    const refundEvent = event.data.object as Stripe.Refund;
+    if (!refundEvent.metadata?.cancellation_reservation_id) return NextResponse.json({ received: true });
+    try {
+      // Events can arrive out of order: always reconcile the latest Stripe state.
+      const refund = await new Stripe(stripeKey).refunds.retrieve(refundEvent.id);
+      const result = await applyCancellationRefund(admin, refund);
+      if (result?.emailPending) return NextResponse.json({ error: "cancellation email failed" }, { status: 500 });
+    } catch (error) {
+      console.error("refund webhook failed:", refundEvent.id, error instanceof Error ? error.message : "unknown error");
+      return NextResponse.json({ error: "refund reconciliation failed" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  const paymentEvent = event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded";
+  const releaseEvent = event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed";
+  if (paymentEvent || releaseEvent) {
     const session = event.data.object as Stripe.Checkout.Session;
     const reservationId = session.metadata?.reservation_id;
     if (reservationId) {
-      if (event.type === "checkout.session.completed") {
+      if (paymentEvent) {
+        // Completing Checkout does not necessarily mean payment has settled.
+        if (session.mode !== "payment" || session.payment_status !== "paid") {
+          return NextResponse.json({ received: true });
+        }
+        const { data: reservation, error: readError } = await admin.from("reservations")
+          .select("id, name, email, check_in, check_out, guests, total_yen, status, stripe_session_id, lang")
+          .eq("id", reservationId).single();
+        if (readError || !reservation) return NextResponse.json({ error: "db error" }, { status: 500 });
+        if (session.currency !== "jpy" || session.amount_total !== reservation.total_yen ||
+          (reservation.stripe_session_id && reservation.stripe_session_id !== session.id)) {
+          console.error("webhook payment mismatch:", reservationId);
+          return NextResponse.json({ error: "payment mismatch" }, { status: 500 });
+        }
+        if (reservation.status === "cancelled") {
+          // Shouldn't happen: paying needs an open Checkout session, and holds are
+          // only released once theirs has expired. If it ever does, the guest has
+          // paid for a stay they don't have — never revive it (the dates may be
+          // resold), but make it loud so the owner refunds or rebooks by hand.
+          console.error("PAID BUT CANCELLED — needs a manual refund or rebooking:",
+            reservationId, session.id, session.payment_intent);
+          return NextResponse.json({ received: true });
+        }
         const { error } = await admin
           .from("reservations")
-          .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id })
+          .update({ status: "confirmed", paid_at: new Date().toISOString(), stripe_session_id: session.id,
+            lang: reservationLanguage(reservation.lang, session.metadata?.lang, session.locale) })
           .eq("id", reservationId)
           .eq("status", "pending");
         if (error) {
@@ -46,13 +91,44 @@ export async function POST(req: Request) {
           // 500 → Stripe retries the delivery.
           return NextResponse.json({ error: "db error" }, { status: 500 });
         }
+        // Re-read on every delivery, including retries after email failure.
+        // A cancelled reservation must never be revived by a repeated event.
+        const { data: confirmed, error: confirmReadError } = await admin.from("reservations")
+          .select("id, name, email, check_in, check_out, guests, total_yen, lang")
+          .eq("id", reservationId).eq("status", "confirmed")
+          .eq("stripe_session_id", session.id).not("paid_at", "is", null).maybeSingle();
+        if (confirmReadError) return NextResponse.json({ error: "db error" }, { status: 500 });
+        if (confirmed) {
+          const lang = reservationLanguage(confirmed.lang, session.metadata?.lang, session.locale);
+          try {
+            await sendReservationConfirmation(admin, confirmed, lang);
+          } catch (error) {
+            console.error("confirmation email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
+            // Payment stays confirmed. Stripe retries this webhook, including the email.
+            return NextResponse.json({ error: "confirmation email failed" }, { status: 500 });
+          }
+          // The hosts' welcome note is a separate step after the confirmation, so a
+          // failure here never holds back the confirmation. Both sends are idempotent,
+          // so a Stripe retry only re-attempts whatever hasn't gone out yet.
+          const { data: welcome, error: welcomeReadError } = await admin.from("reservations")
+            .select("id, name, email, check_in, check_out, guests, total_yen, bbq_plan, sauna_plan, arrival_time")
+            .eq("id", reservationId).maybeSingle();
+          try {
+            if (welcomeReadError || !welcome) throw new Error("could not read stay plans");
+            await sendWelcomeEmail(admin, welcome, lang);
+          } catch (error) {
+            console.error("welcome email failed:", reservationId, error instanceof Error ? error.message : "unknown error");
+            return NextResponse.json({ error: "welcome email failed" }, { status: 500 });
+          }
+        }
       } else {
         // Expired unpaid → release the dates.
-        await admin
+        const { error } = await admin
           .from("reservations")
           .update({ status: "cancelled" })
           .eq("id", reservationId)
           .eq("status", "pending");
+        if (error) return NextResponse.json({ error: "db error" }, { status: 500 });
       }
     }
   }

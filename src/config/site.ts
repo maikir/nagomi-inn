@@ -14,10 +14,14 @@ export const site = {
   /** Tagline shown next to the 和 logo mark (nav/footer) — drops the kanji
    *  so it isn't repeated right beside the logo. */
   taglineLockup: "田舎民泊",
-  url: "https://nagomi-inn.example.com", // replace with the production domain
+  url: "https://www.nagomi-inn-miyazaki.com",
+
+  /** Google review link from the Business Profile ("Ask for reviews"); opens
+   *  the review box directly. Used by the post-stay thank-you email. */
+  reviewUrl: "https://g.page/r/CTMWqndxFBTOEAE/review",
 
   contact: {
-    email: "info@nagomi-inn.jp", // PLACEHOLDER
+    email: "nagomi.inn.miyazaki@gmail.com",
     phone: "+81 70-6461-0434",
     instagram: "nagomi_inn_miyazaki",
   },
@@ -33,24 +37,24 @@ export const site = {
     baseNightly: 80_000,
     /** Guests included in the base rate. */
     includedGuests: 8,
-    /** 9名以上 ¥5,000/人 per night. */
-    perGuestNightly: 5_000,
-    /** No separate cleaning fee — included in the nightly rate. */
-    cleaningFee: 0,
+    /** 9名以降 ¥8,000/人 per night. */
+    perGuestNightly: 8_000,
+    /** ¥8,000 per stay. */
+    cleaningFee: 8_000,
     minGuests: 2,
-    maxGuests: 18, // ¥80,000〜¥130,000/1泊
+    maxGuests: 18, // ¥80,000〜¥160,000/1泊 (+ cleaning). Prices include tax.
     minNights: 1,
     maxNights: 14,
   },
 
-  checkIn: "15:00",
+  checkIn: "16:00",
   checkOut: "10:00",
 
   /**
    * キャンセルポリシー
    *   チェックイン5日前まで無料
    *   4日前〜1日前　キャンセル料50%
-   *   当日（チェックイン24時間以内＝前日15時以降）100%
+   *   当日（チェックイン24時間以内＝前日16時以降）100%
    * Tier boundaries are computed in JST in src/lib/reservations/cancellation.ts
    * — that file is the single source of truth for the refund math.
    */
@@ -59,7 +63,7 @@ export const site = {
     freeUntilDaysBefore: 5,
     /** Inside the free boundary but before the same-day window → 50% fee. */
     lateFeePercent: 50,
-    /** Within 24h of check-in (after 15:00 the day before) → 100% fee. */
+    /** Within 24h of check-in (after 16:00 the day before) → 100% fee. */
     sameDayFeePercent: 100,
   },
 } as const;

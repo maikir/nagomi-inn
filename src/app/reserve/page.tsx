@@ -3,12 +3,31 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { site, formatYen } from "@/config/site";
+import { defaultPricing, computeBreakdown, type Pricing } from "@/lib/pricing";
 import { RangeCalendar } from "@/components/reserve/RangeCalendar";
 import { LogoMark } from "@/components/LogoMark";
+import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
+import {
+  ARRIVAL_TIMES,
+  isAmenityPlan,
+  isArrivalTime,
+  amenityPlanLabel,
+  arrivalTimeLabel,
+  type AmenityPlan,
+  type ArrivalTime,
+} from "@/lib/reservations/stayPlans";
+import {
+  countryOptions,
+  formatAddress,
+  isCountryCode,
+  normalizePostalCode,
+  validAddress,
+  validPostalCode,
+} from "@/lib/reservations/address";
 import {
   getReservationStore,
   nightsBetween,
@@ -29,11 +48,24 @@ type Draft = {
   checkIn: string | null;
   checkOut: string | null;
   guests: number;
-  name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   notes: string;
+  country?: string;
+  postalCode?: string;
+  address?: string;
+  arrivalTime?: string;
+  bbqPlan?: string;
+  saunaPlan?: string;
+  registryAck?: boolean;
+  couponInput?: string;
+  coupon?: AppliedCoupon | null;
 };
+
+/** A coupon previewed for one specific stay; changing dates or guests drops it. */
+type AppliedCoupon = { code: string; discountYen: number; totalYen: number; stayKey: string };
 
 export default function ReservePage() {
   const { t, lang } = useLang();
@@ -46,17 +78,37 @@ export default function ReservePage() {
   const [checkIn, setCheckIn] = useState<string | null>(null);
   const [checkOut, setCheckOut] = useState<string | null>(null);
   const [guests, setGuests] = useState(4);
-  const [name, setName] = useState("");
+  // Entered separately, saved as one name in the order the language expects
+  // (姓 名 in Japanese, "First Last" in English).
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [country, setCountry] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const [address, setAddress] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // Stay plans (asked up front so the hosts can prepare) + registry notice.
+  const [arrivalTime, setArrivalTime] = useState<ArrivalTime | "">("");
+  const [bbqPlan, setBbqPlan] = useState<AmenityPlan | "">("");
+  const [saunaPlan, setSaunaPlan] = useState<AmenityPlan | "">("");
+  const [registryAck, setRegistryAck] = useState(false);
+  const [registryAttempted, setRegistryAttempted] = useState(false);
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<AppliedCoupon | null>(null);
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponError, setCouponError] = useState<"invalid" | "failed" | null>(null);
+  const [error, setError] = useState<Message | null>(null);
+  const [detailsAttempted, setDetailsAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState<Reservation | null>(null);
   // Saving is disabled until restoration has committed — the flag is set in the
   // same batch as the restored values, so a save can never observe pre-restore
   // state (this also survives StrictMode's double effect run in dev).
   const [draftReady, setDraftReady] = useState(false);
+  // Live pricing from the DB (owner-editable); starts at the built-in defaults
+  // and updates once fetched, so the estimate matches what checkout will charge.
+  const [pricing, setPricing] = useState<Pricing>(defaultPricing);
 
   useEffect(() => {
     store.bookedDates().then(setBooked).catch(() => {});
@@ -72,10 +124,20 @@ export default function ReservePage() {
         setCheckIn(d.checkIn);
         setCheckOut(d.checkOut);
         setGuests(d.guests);
-        setName(d.name);
+        setFirstName(d.firstName ?? "");
+        setLastName(d.lastName ?? "");
+        setCountry(isCountryCode(d.country) ? d.country : "");
+        setPostalCode(d.postalCode ?? "");
+        setAddress(d.address ?? "");
         setEmail(d.email);
         setPhone(d.phone);
         setNotes(d.notes);
+        setArrivalTime(isArrivalTime(d.arrivalTime) ? d.arrivalTime : "");
+        setBbqPlan(isAmenityPlan(d.bbqPlan) ? d.bbqPlan : "");
+        setSaunaPlan(isAmenityPlan(d.saunaPlan) ? d.saunaPlan : "");
+        setRegistryAck(d.registryAck === true);
+        setCouponInput(typeof d.couponInput === "string" ? d.couponInput : "");
+        setCoupon(d.coupon && typeof d.coupon.code === "string" ? d.coupon : null);
       }
     } catch {}
     setDraftReady(true);
@@ -84,41 +146,136 @@ export default function ReservePage() {
   // Keep the draft current while the visitor fills the form.
   useEffect(() => {
     if (!draftReady || step === "done") return;
-    const draft: Draft = { step, checkIn, checkOut, guests, name, email, phone, notes };
+    const draft: Draft = { step, checkIn, checkOut, guests, firstName, lastName, email, phone, notes, country, postalCode, address, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon };
     try {
       window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
     } catch {}
-  }, [draftReady, step, checkIn, checkOut, guests, name, email, phone, notes]);
+  }, [draftReady, step, checkIn, checkOut, guests, firstName, lastName, email, phone, notes, country, postalCode, address, arrivalTime, bbqPlan, saunaPlan, registryAck, couponInput, coupon]);
+
+  // Most guests booking in Japanese live in Japan; preselect it (still changeable).
+  useEffect(() => {
+    if (draftReady && lang === "ja") setCountry((cur) => cur || "JP");
+  }, [draftReady, lang]);
+
+  // Load current pricing (falls back to defaults on any error / demo mode).
+  useEffect(() => {
+    fetch("/api/pricing", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((json) => {
+        if (json && typeof json.baseNightly === "number") setPricing(json as Pricing);
+      })
+      .catch(() => {});
+  }, []);
 
   // Signed-in guests get their details prefilled.
   useEffect(() => {
     if (!user) return;
     setEmail((cur) => cur || user.email || "");
-    const fullName = (user.user_metadata?.full_name ?? user.user_metadata?.name ?? "") as string;
-    if (fullName) setName((cur) => cur || fullName);
+    const fullName = ((user.user_metadata?.full_name ?? user.user_metadata?.name ?? "") as string).trim();
+    // Split an account name into first/last only when it's unambiguous: two or
+    // more words. CJK names are written family-name first.
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const cjk = /[\u3040-\u30ff\u3400-\u9fff]/.test(fullName);
+      const [first, last] = cjk ? [parts.slice(1).join(" "), parts[0]] : [parts.slice(0, -1).join(" "), parts[parts.length - 1]];
+      setFirstName((cur) => cur || first);
+      setLastName((cur) => cur || last);
+    }
   }, [user]);
 
   const nights = checkIn && checkOut ? nightsBetween(checkIn, checkOut) : 0;
-  const p = site.pricing;
-  const extraGuests = Math.max(0, guests - p.includedGuests);
-  const baseTotal = nights * p.baseNightly;
-  const extraTotal = extraGuests * p.perGuestNightly * nights;
-  const total = nights > 0 ? baseTotal + extraTotal + p.cleaningFee : 0;
+  const p = pricing;
+  const { extraGuests, baseTotal, extraTotal, total } = computeBreakdown(p, nights, guests);
+  // Coupons are Stripe promotion codes, so they only exist in payments mode.
+  const stayKey = `${checkIn}|${checkOut}|${guests}`;
+  const appliedCoupon = PAYMENTS_ON && coupon?.stayKey === stayKey ? coupon : null;
+  const payTotal = appliedCoupon ? appliedCoupon.totalYen : total;
 
   const nightsLabel = fill(nights === 1 ? t.reserve.nights_one : t.reserve.nights_other, { n: nights });
   const guestsLabel = fill(guests === 1 ? t.reserve.guest_one : t.reserve.guest_other, { n: guests });
+  const name = (lang === "ja" ? [lastName, firstName] : [firstName, lastName]).map((s) => s.trim()).filter(Boolean).join(" ");
+  const addressLine = formatAddress({ country, postalCode: postalCode ? normalizePostalCode(postalCode, country) : "", address: address.trim() }, lang);
+
+  function validateDetails() {
+    setDetailsAttempted(true);
+    if (!validGuestName(firstName) || !validGuestName(lastName) || !validGuestName(name)) {
+      setError({ key: "reserve.errorName" });
+      return false;
+    }
+    if (!validGuestEmail(email)) {
+      setError({ key: "reserve.errorEmail" });
+      return false;
+    }
+    if (!validGuestPhone(phone)) {
+      setError({ key: "reserve.errorPhone" });
+      return false;
+    }
+    if (!isCountryCode(country)) {
+      setError({ key: "reserve.errorCountry" });
+      return false;
+    }
+    if (!validPostalCode(postalCode, country)) {
+      setError({ key: "reserve.errorPostal" });
+      return false;
+    }
+    if (!validAddress(address)) {
+      setError({ key: "reserve.errorAddress" });
+      return false;
+    }
+    if (!isArrivalTime(arrivalTime) || !isAmenityPlan(bbqPlan) || !isAmenityPlan(saunaPlan)) {
+      setError({ key: "reserve.errorPlans" });
+      return false;
+    }
+    return true;
+  }
 
   function next() {
     setError(null);
     if (step === "dates") {
-      if (!checkIn || !checkOut || nights < p.minNights) return setError(t.reserve.errorDates);
+      if (!checkIn || !checkOut || nights < p.minNights) return setError({ key: "reserve.errorDates" });
       setStep("details");
     } else if (step === "details") {
-      if (!name.trim()) return setError(t.reserve.errorName);
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError(t.reserve.errorEmail);
+      if (!validateDetails()) return;
       setStep("confirm");
     }
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function applyCoupon() {
+    const code = couponInput.trim();
+    if (!code || !checkIn || !checkOut) return;
+    setCouponBusy(true);
+    setCouponError(null);
+    try {
+      const session = (await getSupabase()?.auth.getSession())?.data.session;
+      if (!session) {
+        router.push("/login?next=/reserve");
+        return;
+      }
+      const res = await fetch("/api/coupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ code, checkIn, checkOut, guests }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { code?: string; discountYen?: number; totalYen?: number; error?: string };
+      if (res.ok && json.code && typeof json.discountYen === "number" && typeof json.totalYen === "number") {
+        setCoupon({ code: json.code, discountYen: json.discountYen, totalYen: json.totalYen, stayKey });
+        setCouponInput(json.code);
+      } else {
+        setCoupon(null);
+        setCouponError(json.error === "COUPON_INVALID" || json.error === "INVALID_INPUT" ? "invalid" : "failed");
+      }
+    } catch {
+      setCouponError("failed");
+    } finally {
+      setCouponBusy(false);
+    }
+  }
+
+  function removeCoupon() {
+    setCoupon(null);
+    setCouponInput("");
+    setCouponError(null);
   }
 
   function back() {
@@ -129,6 +286,12 @@ export default function ReservePage() {
 
   async function submit() {
     if (!checkIn || !checkOut) return;
+    if (!validateDetails()) { setStep("details"); return; }
+    if (!registryAck) {
+      setRegistryAttempted(true);
+      setError({ key: "reserve.errorRegistry" });
+      return;
+    }
     // Reserving requires an account when Supabase is connected. The draft is
     // already in sessionStorage, so nothing is lost across the redirect.
     if (authEnabled && !user) {
@@ -157,11 +320,19 @@ export default function ReservePage() {
             checkIn,
             checkOut,
             guests,
-            name: name.trim(),
+            name,
             email: email.trim(),
-            phone: phone.trim() || undefined,
+            phone: normalizeGuestPhone(phone) || undefined,
             notes: notes.trim() || undefined,
             lang,
+            arrivalTime,
+            bbqPlan,
+            saunaPlan,
+            registryAck,
+            country,
+            postalCode: postalCode.trim() || undefined,
+            address: address.trim(),
+            couponCode: appliedCoupon?.code,
           }),
         });
         const json = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
@@ -170,16 +341,22 @@ export default function ReservePage() {
           return; // keep `submitting` on while the browser navigates to Stripe
         }
         if (json.error === "UNAVAILABLE") {
-          setError(t.reserve.errorUnavailable);
+          setError({ key: "reserve.errorUnavailable" });
           setBooked(await store.bookedDates());
           setStep("dates");
         } else if (json.error === "AUTH_REQUIRED") {
           router.push("/login?next=/reserve");
+        } else if (json.error === "PAYMENT_IN_PROGRESS") {
+          setError({ key: "reserve.errorPaymentInProgress" });
+        } else if (json.error === "COUPON_INVALID") {
+          setCoupon(null);
+          setCouponError("invalid");
+          setError({ key: "reserve.couponInvalid" });
         } else {
-          setError(t.reserve.payError);
+          setError({ key: "reserve.payError" });
         }
       } catch {
-        setError(t.reserve.payError);
+        setError({ key: "reserve.payError" });
       } finally {
         setSubmitting(false);
       }
@@ -193,11 +370,18 @@ export default function ReservePage() {
         checkIn,
         checkOut,
         guests,
-        name: name.trim(),
+        name,
         email: email.trim(),
-        phone: phone.trim() || undefined,
+        phone: normalizeGuestPhone(phone) || undefined,
         notes: notes.trim() || undefined,
         totalYen: total,
+        arrivalTime: arrivalTime || undefined,
+        bbqPlan: bbqPlan || undefined,
+        saunaPlan: saunaPlan || undefined,
+        registryAckAt: new Date().toISOString(),
+        country,
+        postalCode: postalCode.trim() ? normalizePostalCode(postalCode, country) : undefined,
+        address: address.trim(),
       });
       setConfirmed(reservation);
       setStep("done");
@@ -207,13 +391,13 @@ export default function ReservePage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       if (e instanceof Error && e.message === "UNAVAILABLE") {
-        setError(t.reserve.errorUnavailable);
+        setError({ key: "reserve.errorUnavailable" });
         setBooked(await store.bookedDates());
         setStep("dates");
       } else if (e instanceof Error && e.message === "AUTH_REQUIRED") {
         router.push("/login?next=/reserve");
       } else {
-        setError(String(e));
+        setError({ key: String(e) });
       }
     } finally {
       setSubmitting(false);
@@ -256,7 +440,7 @@ export default function ReservePage() {
 
       {error && (
         <div className="mt-8 border border-copper/60 bg-copper/10 px-5 py-4 text-sm text-copper-bright" role="alert">
-          {error}
+          {resolveMessage(t, error)}
         </div>
       )}
 
@@ -305,6 +489,7 @@ export default function ReservePage() {
           </div>
 
           <Summary
+            pricing={p}
             checkIn={checkIn}
             checkOut={checkOut}
             nights={nights}
@@ -324,25 +509,122 @@ export default function ReservePage() {
           <div>
             <h2 className="font-display text-2xl">{t.reserve.yourDetails}</h2>
             <div className="mt-8 space-y-6">
-              <Field label={t.reserve.name} value={name} onChange={setName} type="text" required />
-              <Field label={t.reserve.email} value={email} onChange={setEmail} type="email" required />
-              <Field label={t.reserve.phone} value={phone} onChange={setPhone} type="tel" />
+              {/* 姓・名 in Japanese; First / Last in English. */}
+              <div className="grid gap-6 sm:grid-cols-2">
+                {(() => {
+                  const first = <Field key="first" id="guest-first-name" label={t.reserve.firstName} value={firstName} onChange={setFirstName} type="text" autoComplete="given-name" maxLength={50} required attempted={detailsAttempted} error={validGuestName(firstName) ? undefined : t.reserve.errorNameField} />;
+                  const last = <Field key="last" id="guest-last-name" label={t.reserve.lastName} value={lastName} onChange={setLastName} type="text" autoComplete="family-name" maxLength={50} required attempted={detailsAttempted} error={validGuestName(lastName) ? undefined : t.reserve.errorNameField} />;
+                  return lang === "ja" ? [last, first] : [first, last];
+                })()}
+              </div>
+              <Field id="guest-email" label={t.reserve.email} value={email} onChange={setEmail} type="email" autoComplete="email" maxLength={254} required attempted={detailsAttempted} error={validGuestEmail(email) ? undefined : t.reserve.errorEmail} />
+              <Field id="guest-phone" label={t.reserve.phone} value={phone} onChange={setPhone} type="tel" autoComplete="tel" maxLength={40} attempted={detailsAttempted} error={validGuestPhone(phone) ? undefined : t.reserve.errorPhone} hint={t.reserve.phoneHint} />
+
+              {/* Address (guest registry). Japanese order: 国 → 〒 → 住所; English: Country → Address → Postal code. */}
+              <div className="flex flex-col gap-6">
+                <div>
+                  <label htmlFor="guest-country" className="block text-xs tracking-[0.2em] text-paper-faint">
+                    {t.reserve.country.toUpperCase()}
+                    <span className="text-copper-bright"> *</span>
+                  </label>
+                  <select
+                    id="guest-country"
+                    autoComplete="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    aria-invalid={detailsAttempted && !isCountryCode(country) ? true : undefined}
+                    className={`mt-3 w-full border bg-sumi-900 px-4 py-3 text-sm text-paper focus:border-copper focus:outline-none ${
+                      detailsAttempted && !isCountryCode(country) ? "border-copper" : "border-paper/20"
+                    }`}
+                  >
+                    <option value="" disabled>
+                      {t.reserve.countryChoose}
+                    </option>
+                    {countryOptions(lang).map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className={lang === "ja" ? "order-1" : "order-2"}>
+                  <Field id="guest-postal" label={country === "JP" ? t.reserve.postalCode : t.reserve.postalCodeOptional} value={postalCode} onChange={setPostalCode} type="text" autoComplete="postal-code" maxLength={20} required={country === "JP"} placeholder={country === "JP" ? t.reserve.postalPlaceholder : undefined} attempted={detailsAttempted} error={validPostalCode(postalCode, country) ? undefined : t.reserve.errorPostal} />
+                </div>
+                <div className={lang === "ja" ? "order-2" : "order-1"}>
+                  <Field id="guest-address" label={t.reserve.address} value={address} onChange={setAddress} type="text" autoComplete="street-address" maxLength={200} required placeholder={t.reserve.addressPlaceholder} attempted={detailsAttempted} error={validAddress(address) ? undefined : t.reserve.errorAddress} hint={t.reserve.addressHint} />
+                </div>
+              </div>
               <div>
                 <label className="block text-xs tracking-[0.2em] text-paper-faint">
                   {t.reserve.notes.toUpperCase()}
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
+                    maxLength={1000}
                     placeholder={t.reserve.notesPlaceholder}
                     rows={4}
                     className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper placeholder:text-paper-faint/60 focus:border-copper focus:outline-none"
                   />
                 </label>
               </div>
+              <p className="text-xs leading-relaxed text-paper-faint">
+                {t.reserve.privacyNote}{" "}
+                <Link href="/privacy" target="_blank" className="text-copper-bright underline-offset-4 hover:underline">
+                  {t.footer.privacy}
+                </Link>
+                {lang === "en" ? "." : ""}
+              </p>
+            </div>
+
+            <div className="mt-10 border-t border-paper/10 pt-8">
+              <h2 className="font-display text-2xl">{t.reserve.stayPlansTitle}</h2>
+              <p className="mt-2 text-sm text-paper-faint">{t.reserve.stayPlansHint}</p>
+              <div className="mt-8 space-y-7">
+                <div>
+                  <label htmlFor="arrival-time" className="block text-xs tracking-[0.2em] text-paper-faint">
+                    {t.reserve.arrivalTime.toUpperCase()}
+                    <span className="text-copper-bright"> *</span>
+                  </label>
+                  <select
+                    id="arrival-time"
+                    value={arrivalTime}
+                    onChange={(e) => setArrivalTime(e.target.value as ArrivalTime | "")}
+                    className={`mt-3 w-full border bg-sumi-900 px-4 py-3 text-sm text-paper focus:border-copper focus:outline-none ${
+                      detailsAttempted && !arrivalTime ? "border-copper" : "border-paper/20"
+                    }`}
+                  >
+                    <option value="" disabled>
+                      {t.reserve.arrivalChoose}
+                    </option>
+                    {ARRIVAL_TIMES.map((time) => (
+                      <option key={time} value={time}>
+                        {arrivalTimeLabel(time, t.reserve)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs text-paper-faint">{t.reserve.arrivalHint}</p>
+                </div>
+                <ChoiceGroup
+                  name="bbq-plan"
+                  label={t.reserve.bbq}
+                  hint={t.reserve.bbqHint}
+                  value={bbqPlan}
+                  onChange={setBbqPlan}
+                  invalid={detailsAttempted && !bbqPlan}
+                />
+                <ChoiceGroup
+                  name="sauna-plan"
+                  label={t.reserve.sauna}
+                  value={saunaPlan}
+                  onChange={setSaunaPlan}
+                  invalid={detailsAttempted && !saunaPlan}
+                />
+              </div>
             </div>
           </div>
 
           <Summary
+            pricing={p}
             checkIn={checkIn}
             checkOut={checkOut}
             nights={nights}
@@ -367,9 +649,126 @@ export default function ReservePage() {
             <Row label={t.reserve.name} value={name} />
             <Row label={t.reserve.email} value={email} />
             {phone && <Row label={t.reserve.phone} value={phone} />}
+            {addressLine && <Row label={t.reserve.address} value={addressLine} />}
             {notes && <Row label={t.reserve.notes} value={notes} />}
-            <Row label={t.reserve.total} value={formatYen(total)} strong />
+            {arrivalTime && <Row label={t.reserve.arrivalTime} value={arrivalTimeLabel(arrivalTime, t.reserve)} />}
+            {bbqPlan && <Row label={t.reserve.bbq} value={amenityPlanLabel(bbqPlan, t.reserve)} />}
+            {saunaPlan && <Row label={t.reserve.sauna} value={amenityPlanLabel(saunaPlan, t.reserve)} />}
+            {appliedCoupon && (
+              <Row
+                label={fill(t.reserve.couponDiscount, { code: appliedCoupon.code })}
+                value={`−${formatYen(appliedCoupon.discountYen)}`}
+              />
+            )}
+            <Row label={t.reserve.total} value={formatYen(payTotal)} strong />
           </dl>
+
+          {PAYMENTS_ON && authEnabled && user && (
+            <div className="mt-6">
+              <label htmlFor="coupon-code" className="block text-xs tracking-[0.2em] text-paper-faint">
+                {t.reserve.couponLabel.toUpperCase()}
+              </label>
+              {appliedCoupon ? (
+                <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                  <span className="text-moss">{fill(t.reserve.couponApplied, { code: appliedCoupon.code })}</span>
+                  <button
+                    type="button"
+                    onClick={removeCoupon}
+                    className="text-xs tracking-[0.15em] text-paper-faint underline-offset-4 transition-colors hover:text-paper hover:underline"
+                  >
+                    {t.reserve.couponRemove}
+                  </button>
+                </p>
+              ) : (
+                <form
+                  className="mt-3 flex max-w-sm gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    applyCoupon();
+                  }}
+                >
+                  <input
+                    id="coupon-code"
+                    value={couponInput}
+                    onChange={(e) => {
+                      setCouponInput(e.target.value);
+                      setCouponError(null);
+                    }}
+                    placeholder={t.reserve.couponPlaceholder}
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    maxLength={64}
+                    aria-invalid={couponError ? true : undefined}
+                    aria-describedby={couponError ? "coupon-error" : undefined}
+                    className={`min-w-0 flex-1 border bg-sumi-900 px-4 py-2.5 text-sm tracking-[0.1em] text-paper placeholder:tracking-normal placeholder:text-paper-faint/60 focus:border-copper focus:outline-none ${
+                      couponError ? "border-copper" : "border-paper/20"
+                    }`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={couponBusy || !couponInput.trim()}
+                    className="shrink-0 border border-paper/30 px-5 py-2.5 text-xs tracking-[0.2em] text-paper transition-all hover:border-paper disabled:opacity-50"
+                  >
+                    {(couponBusy ? t.reserve.couponChecking : t.reserve.couponApply).toUpperCase()}
+                  </button>
+                </form>
+              )}
+              {couponError && !appliedCoupon && (
+                <p id="coupon-error" role="alert" className="mt-2 text-xs text-copper-bright">
+                  {couponError === "invalid" ? t.reserve.couponInvalid : t.reserve.couponLookupFailed}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Nothing to arrange when both are already a yes. */}
+          {!(bbqPlan === "yes" && saunaPlan === "yes") && (
+            <div className="mt-8 border border-paper/15 bg-sumi-900 px-5 py-5">
+              <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.amenityNoticeTitle.toUpperCase()}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-paper-dim">{t.reserve.amenityNotice}</p>
+              <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+                <a href={`mailto:${site.contact.email}`} className="text-copper-bright transition-colors hover:text-paper">
+                  {site.contact.email}
+                </a>
+                <a href={`tel:${site.contact.phone.replace(/[^+\d]/g, "")}`} className="text-copper-bright transition-colors hover:text-paper">
+                  {site.contact.phone}
+                </a>
+              </p>
+            </div>
+          )}
+
+          <div
+            className={`mt-8 border bg-sumi-900 px-5 py-5 ${
+              registryAttempted && !registryAck ? "border-copper/70" : "border-paper/15"
+            }`}
+          >
+            <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.registryTitle.toUpperCase()}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-paper-dim">{t.reserve.registryBody}</p>
+            <label className="mt-4 flex cursor-pointer items-start gap-3 text-sm text-paper">
+              <input
+                type="checkbox"
+                checked={registryAck}
+                onChange={(e) => {
+                  setRegistryAck(e.target.checked);
+                  if (e.target.checked && error?.key === "reserve.errorRegistry") setError(null);
+                }}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-copper"
+              />
+              <span>
+                {t.reserve.registryAck}
+                <span className="text-copper-bright"> *</span>
+              </span>
+            </label>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="text-xs tracking-[0.2em] text-paper-faint">{t.reserve.goodToKnowTitle.toUpperCase()}</h3>
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-paper-dim">
+              <li>・{t.reserve.goodToKnowCheckin}</li>
+              <li>・{t.reserve.goodToKnowToothbrush}</li>
+            </ul>
+          </div>
           {authEnabled && !user && (
             <p className="mt-6 border border-paper/15 bg-sumi-900 px-5 py-4 text-sm text-paper-dim">
               {t.auth.signInToConfirm}
@@ -459,30 +858,110 @@ export default function ReservePage() {
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
 
+/** Yes / No / Not sure yet, as native radios styled like segmented buttons. */
+function ChoiceGroup({
+  name,
+  label,
+  hint,
+  value,
+  onChange,
+  invalid,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  value: AmenityPlan | "";
+  onChange: (v: AmenityPlan) => void;
+  invalid?: boolean;
+}) {
+  const { t } = useLang();
+  const options: AmenityPlan[] = ["yes", "no", "undecided"];
+  return (
+    <fieldset>
+      <legend className="text-xs tracking-[0.2em] text-paper-faint">
+        {label.toUpperCase()}
+        <span className="text-copper-bright"> *</span>
+      </legend>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {options.map((option) => (
+          <label
+            key={option}
+            className={`cursor-pointer border px-3 py-3 text-center text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-copper ${
+              value === option
+                ? "border-copper bg-copper/10 text-copper-bright"
+                : invalid
+                  ? "border-copper/60 text-paper-dim hover:border-copper"
+                  : "border-paper/20 text-paper-dim hover:border-paper/40 hover:text-paper"
+            }`}
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              checked={value === option}
+              onChange={() => onChange(option)}
+              className="sr-only"
+            />
+            {amenityPlanLabel(option, t.reserve)}
+          </label>
+        ))}
+      </div>
+      {hint && <p className="mt-2 text-xs text-paper-faint">{hint}</p>}
+    </fieldset>
+  );
+}
+
 function Field({
+  id,
   label,
   value,
   onChange,
   type,
   required,
+  autoComplete,
+  maxLength,
+  error,
+  hint,
+  placeholder,
+  attempted,
 }: {
+  id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
   type: string;
   required?: boolean;
+  autoComplete?: string;
+  maxLength?: number;
+  error?: string;
+  hint?: string;
+  placeholder?: string;
+  attempted?: boolean;
 }) {
+  const [touched, setTouched] = useState(false);
+  const visibleError = (touched || attempted) ? error : undefined;
   return (
     <label className="block text-xs tracking-[0.2em] text-paper-faint">
       {label.toUpperCase()}
       {required && <span className="text-copper-bright"> *</span>}
       <input
+        id={id}
+        name={autoComplete}
         type={type}
+        inputMode={type === "tel" ? "tel" : type === "email" ? "email" : "text"}
+        autoComplete={autoComplete}
+        maxLength={maxLength}
+        placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
+        onBlur={() => setTouched(true)}
+        aria-invalid={Boolean(visibleError)}
+        aria-describedby={visibleError ? `${id}-error` : hint ? `${id}-hint` : undefined}
+        className="mt-3 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper placeholder:text-paper-faint/60 focus:border-copper focus:outline-none"
       />
+      {visibleError ? <span id={`${id}-error`} role="alert" className="mt-2 block text-xs tracking-normal text-copper-bright">{visibleError}</span>
+        : hint ? <span id={`${id}-hint`} className="mt-2 block text-xs tracking-normal text-paper-faint">{hint}</span> : null}
     </label>
   );
 }
@@ -497,6 +976,7 @@ function Row({ label, value, strong }: { label: string; value: string; strong?: 
 }
 
 function Summary(props: {
+  pricing: Pricing;
   checkIn: string | null;
   checkOut: string | null;
   nights: number;
@@ -508,7 +988,7 @@ function Summary(props: {
   total: number;
 }) {
   const { t, lang } = useLang();
-  const p = site.pricing;
+  const p = props.pricing;
 
   return (
     <aside className="h-fit border border-paper/15 bg-sumi-900 p-7 lg:sticky lg:top-28">

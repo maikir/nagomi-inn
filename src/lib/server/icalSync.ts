@@ -51,7 +51,14 @@ export async function syncExternalCalendars(opts?: { ifStaleMinutes?: number }):
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const events = parseIcs(await res.text());
+      const text = await res.text();
+      // An error page or cut-off download parses as "no bookings", and the
+      // cleanup below would then free every OTA-booked date. Only trust a
+      // complete calendar.
+      if (!/^\s*BEGIN:VCALENDAR/.test(text) || !/END:VCALENDAR\s*$/.test(text)) {
+        throw new Error("response is not a complete iCal feed");
+      }
+      const events = parseIcs(text);
 
       if (events.length > 0) {
         const { error: upsertErr } = await admin.from("external_blocks").upsert(

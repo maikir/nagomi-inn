@@ -52,3 +52,20 @@ export function useLang() {
 export function fill(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => String(vars[key] ?? ""));
 }
+
+/**
+ * A deferred, language-reactive message: store the dictionary KEY (dotted path,
+ * e.g. "reservations.cancelledHalf") + any data params instead of the resolved
+ * string, so notices already on screen re-translate when the language switches.
+ * If `key` isn't found in the dictionary it's returned as-is — handy for raw
+ * error strings that shouldn't be translated.
+ */
+export type Message = { key: string; params?: Record<string, string | number> };
+
+export function resolveMessage(t: unknown, msg: Message): string {
+  const raw = msg.key
+    .split(".")
+    .reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), t);
+  if (typeof raw === "string") return msg.params ? fill(raw, msg.params) : raw;
+  return msg.key;
+}

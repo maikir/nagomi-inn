@@ -2,10 +2,17 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useLang } from "@/lib/i18n/LanguageProvider";
+import { useLang, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { LogoMark } from "@/components/LogoMark";
+
+/**
+ * Social sign-in buttons to show. Each provider must be enabled in Supabase
+ * first (Authentication → Providers, in both projects), or its button errors.
+ * Email + password is always shown. To bring Google back: ["google"].
+ */
+const OAUTH_PROVIDERS: ("google" | "apple")[] = [];
 
 export default function LoginPage() {
   return (
@@ -25,9 +32,10 @@ function LoginInner() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<Message | null>(null);
+  const [notice, setNotice] = useState<Message | null>(null);
 
   // Already signed in → continue on.
   if (user) {
@@ -58,6 +66,11 @@ function LoginInner() {
         if (error) throw error;
         router.replace(next);
       } else {
+        if (password !== confirm) {
+          setError({ key: "auth.errorPasswordMismatch" });
+          setBusy(false);
+          return;
+        }
         const { error, data } = await supabase.auth.signUp({
           email,
           password,
@@ -66,13 +79,13 @@ function LoginInner() {
         if (error) throw error;
         // If email confirmation is on, there's no session yet.
         if (data.session) router.replace(next);
-        else setNotice(t.auth.checkEmail);
+        else setNotice({ key: "auth.checkEmail" });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (/invalid login credentials/i.test(msg)) setError(t.auth.errorInvalid);
-      else if (/password/i.test(msg) && /6|short|weak/i.test(msg)) setError(t.auth.errorWeakPassword);
-      else setError(t.auth.errorGeneric);
+      if (/invalid login credentials/i.test(msg)) setError({ key: "auth.errorInvalid" });
+      else if (/password/i.test(msg) && /6|short|weak/i.test(msg)) setError({ key: "auth.errorWeakPassword" });
+      else setError({ key: "auth.errorGeneric" });
     } finally {
       setBusy(false);
     }
@@ -92,29 +105,29 @@ function LoginInner() {
         </p>
       ) : (
         <div className="mt-10">
-          {/* OAuth */}
-          <div className="space-y-3">
-            <button
-              onClick={() => withOAuth("google")}
-              className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
-            >
-              <GoogleMark />
-              {t.auth.google}
-            </button>
-            <button
-              onClick={() => withOAuth("apple")}
-              className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
-            >
-              <AppleMark />
-              {t.auth.apple}
-            </button>
-          </div>
+          {/* OAuth (only providers switched on in OAUTH_PROVIDERS) */}
+          {OAUTH_PROVIDERS.length > 0 && (
+            <>
+              <div className="space-y-3">
+                {OAUTH_PROVIDERS.map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => withOAuth(provider)}
+                    className="flex w-full items-center justify-center gap-3 border border-paper/25 bg-sumi-900 px-6 py-3.5 text-sm tracking-wide text-paper transition-colors hover:border-paper/50"
+                  >
+                    {provider === "google" ? <GoogleMark /> : <AppleMark />}
+                    {provider === "google" ? t.auth.google : t.auth.apple}
+                  </button>
+                ))}
+              </div>
 
-          <div className="my-8 flex items-center gap-4">
-            <span className="h-px flex-1 bg-paper/15" />
-            <span className="text-[11px] tracking-[0.25em] text-paper-faint">{t.auth.or.toUpperCase()}</span>
-            <span className="h-px flex-1 bg-paper/15" />
-          </div>
+              <div className="my-8 flex items-center gap-4">
+                <span className="h-px flex-1 bg-paper/15" />
+                <span className="text-[11px] tracking-[0.25em] text-paper-faint">{t.auth.or.toUpperCase()}</span>
+                <span className="h-px flex-1 bg-paper/15" />
+              </div>
+            </>
+          )}
 
           {/* Email + password */}
           <form onSubmit={submit} className="space-y-5">
@@ -141,15 +154,29 @@ function LoginInner() {
                 className="mt-2.5 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
               />
             </label>
+            {mode === "signup" && (
+              <label className="block text-xs tracking-[0.2em] text-paper-faint">
+                {t.auth.confirmPassword.toUpperCase()}
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="mt-2.5 w-full border border-paper/20 bg-sumi-900 px-4 py-3 text-sm tracking-normal text-paper focus:border-copper focus:outline-none"
+                />
+              </label>
+            )}
 
             {error && (
               <p className="border border-copper/60 bg-copper/10 px-4 py-3 text-sm text-copper-bright" role="alert">
-                {error}
+                {resolveMessage(t, error)}
               </p>
             )}
             {notice && (
               <p className="border border-moss/60 bg-moss/10 px-4 py-3 text-sm text-paper" role="status">
-                {notice}
+                {resolveMessage(t, notice)}
               </p>
             )}
 
@@ -169,6 +196,7 @@ function LoginInner() {
                 setMode(mode === "signin" ? "signup" : "signin");
                 setError(null);
                 setNotice(null);
+                setConfirm("");
               }}
               className="text-copper-bright underline-offset-4 hover:underline"
             >

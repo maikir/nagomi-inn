@@ -4,7 +4,7 @@ import { nightsOf } from "./dates";
 /**
  * Browser localStorage implementation — the current "database".
  * Reservations live only on the visitor's device. Swap for the Supabase
- * store (see supabaseStore.ts + supabase/schema.sql) when going live.
+ * store (see supabaseStore.ts + supabase/migrations/20260705222859_initial_schema.sql) when going live.
  */
 
 const KEY = "nagomi.reservations.v1";

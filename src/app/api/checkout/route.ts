@@ -4,11 +4,20 @@ import { site } from "@/config/site";
 import { nightsBetween } from "@/lib/reservations/dates";
 import { getSupabaseAdmin, getSupabaseAsUser } from "@/lib/server/supabaseAdmin";
 import { syncExternalCalendars } from "@/lib/server/icalSync";
+import { getEffectivePricing } from "@/lib/server/pricing";
+import { computeBreakdown } from "@/lib/pricing";
+import { reservationLanguage } from "@/lib/reservations/language";
+import { validGuestName, validGuestEmail, validGuestPhone, normalizeGuestPhone } from "@/lib/reservations/validation";
+import { isAmenityPlan, isArrivalTime } from "@/lib/reservations/stayPlans";
+import { isCountryCode, normalizePostalCode, validAddress, validPostalCode } from "@/lib/reservations/address";
+import { normalizeCouponCode, quoteCoupon, type CouponQuote } from "@/lib/server/coupons";
+import { releaseGuestHolds, releaseOrphanedHolds } from "@/lib/server/holds";
 
 /**
  * POST /api/checkout
  * Creates a 'pending' reservation (holding the dates) and a Stripe Checkout
- * session for it. The price is computed HERE, server-side — the client's
+ * session for it. Only this route creates reservations: it verifies the
+ * guest, then inserts with the service role (guests have no INSERT grant). The price is computed HERE, server-side — the client's
  * total is display-only. The webhook confirms the reservation on payment.
  */
 
@@ -23,9 +32,21 @@ type Body = {
   phone?: string;
   notes?: string;
   lang?: "en" | "ja";
+  bbqPlan?: string;
+  saunaPlan?: string;
+  arrivalTime?: string;
+  /** Guest ticked the Hotel Business Act guest-registration notice. */
+  registryAck?: boolean;
+  /** Guest address for the registry (旅館業法). */
+  country?: string;
+  postalCode?: string;
+  address?: string;
+  /** Optional Stripe promotion code, already previewed via /api/coupon. */
+  couponCode?: string;
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NOTES_MAX = 1000;
 
 export async function POST(req: Request) {
   const stripeKey = process.env.STRIPE_SECRET_KEY;
@@ -42,17 +63,24 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser(token);
   if (!user) return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  const admin = getSupabaseAdmin();
+  if (!admin) return NextResponse.json({ error: "PAYMENTS_NOT_CONFIGURED" }, { status: 501 });
 
   // ── validate ──────────────────────────────────────────────────────────────
   const body = (await req.json().catch(() => ({}))) as Body;
   const { checkIn, checkOut, guests, name, email } = body;
-  const p = site.pricing;
+  const lang = reservationLanguage(body.lang);
+  // Pricing comes from the DB (owner-editable), not the client — authoritative.
+  const p = await getEffectivePricing();
   const today = new Date().toISOString().slice(0, 10);
   if (
     !checkIn || !checkOut || !ISO_DATE.test(checkIn) || !ISO_DATE.test(checkOut) ||
     checkOut <= checkIn || checkIn < today ||
     !guests || !Number.isInteger(guests) || guests < p.minGuests || guests > p.maxGuests ||
-    !name?.trim() || !email?.trim()
+    !validGuestName(name) || !validGuestEmail(email) || !validGuestPhone(body.phone) ||
+    !isAmenityPlan(body.bbqPlan) || !isAmenityPlan(body.saunaPlan) || !isArrivalTime(body.arrivalTime) ||
+    !isCountryCode(body.country) || !validPostalCode(body.postalCode, body.country) || !validAddress(body.address) ||
+    body.registryAck !== true
   ) {
     return NextResponse.json({ error: "INVALID_INPUT" }, { status: 400 });
   }
@@ -62,8 +90,35 @@ export async function POST(req: Request) {
   }
 
   // ── price: authoritative, server-side ─────────────────────────────────────
-  const extraGuests = Math.max(0, guests - p.includedGuests);
-  const total = nights * p.baseNightly + extraGuests * p.perGuestNightly * nights + p.cleaningFee;
+  const { total } = computeBreakdown(p, nights, guests);
+  const stripe = new Stripe(stripeKey);
+
+  // ── coupon: re-checked here; Stripe applies it and decides the final amount ──
+  let quote: CouponQuote | null = null;
+  if (body.couponCode !== undefined && body.couponCode !== "") {
+    const code = normalizeCouponCode(body.couponCode);
+    try {
+      quote = code ? await quoteCoupon(stripe, code, total) : null;
+    } catch (e) {
+      console.error("coupon lookup error:", e);
+      return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
+    }
+    if (!quote) return NextResponse.json({ error: "COUPON_INVALID" }, { status: 400 });
+  }
+
+  // ── one open hold per guest ───────────────────────────────────────────────
+  // Also frees the guest's own earlier hold, so retrying the same dates after
+  // backing out of Stripe works instead of reporting them unavailable.
+  try {
+    if (!(await releaseGuestHolds(admin, stripe, user.id))) {
+      return NextResponse.json({ error: "PAYMENT_IN_PROGRESS" }, { status: 409 });
+    }
+  } catch (e) {
+    console.error("releasing previous hold failed:", e instanceof Error ? e.message : e);
+    return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
+  }
+  // Best-effort: the daily cron sweeps these too.
+  await releaseOrphanedHolds(admin).catch((e) => console.error("orphaned hold sweep failed:", e.message));
 
   // ── freshen OTA calendars if stale, then hold the dates ───────────────────
   try {
@@ -72,32 +127,40 @@ export async function POST(req: Request) {
     // OTA feed hiccups must not block direct bookings; DB constraints still guard.
   }
 
-  const { data: reservation, error: insertError } = await supabase
+  const { data: reservation, error: insertError } = await admin
     .from("reservations")
     .insert({
+      user_id: user.id,
       check_in: checkIn,
       check_out: checkOut,
       guests,
       name: name.trim(),
       email: email.trim(),
-      phone: body.phone?.trim() || null,
-      notes: body.notes?.trim() || null,
+      phone: body.phone ? normalizeGuestPhone(body.phone) || null : null,
+      notes: body.notes?.trim().slice(0, NOTES_MAX) || null,
       total_yen: total,
       status: "pending",
+      lang,
+      bbq_plan: body.bbqPlan,
+      sauna_plan: body.saunaPlan,
+      arrival_time: body.arrivalTime,
+      country: body.country,
+      postal_code: body.postalCode ? normalizePostalCode(body.postalCode, body.country) || null : null,
+      address: body.address.trim(),
+      // Server time, not the browser's: this is the record of acknowledgment.
+      registry_ack_at: new Date().toISOString(),
     })
     .select()
     .single();
   if (insertError) {
     const code = (insertError as { code?: string }).code;
     if (code === "23P01") return NextResponse.json({ error: "UNAVAILABLE" }, { status: 409 });
-    if (code === "42501") return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
     return NextResponse.json({ error: "DB_ERROR" }, { status: 500 });
   }
 
   // ── Stripe Checkout session ───────────────────────────────────────────────
-  const stripe = new Stripe(stripeKey);
   const origin = req.headers.get("origin") ?? site.url;
-  const ja = body.lang === "ja";
+  const ja = lang === "ja";
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -119,7 +182,8 @@ export async function POST(req: Request) {
           },
         },
       ],
-      metadata: { reservation_id: reservation.id, user_id: user.id },
+      ...(quote && { discounts: [{ promotion_code: quote.promotionCodeId }] }),
+      metadata: { reservation_id: reservation.id, user_id: user.id, lang },
       // Unpaid sessions expire and the webhook frees the held dates.
       expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
       success_url: `${origin}/reserve/success?rid=${reservation.id}`,
@@ -127,17 +191,38 @@ export async function POST(req: Request) {
       locale: ja ? "ja" : "en",
     });
 
-    // Best-effort back-reference for support/refunds.
-    await getSupabaseAdmin()
-      ?.from("reservations")
-      .update({ stripe_session_id: session.id })
-      .eq("id", reservation.id);
+    // Record the session before the guest can pay: the webhook and refunds only
+    // accept a charge equal to total_yen (Stripe's discounted amount when a
+    // coupon is used), and the orphan sweep releases holds without a session.
+    // If this fails, kill the session rather than take an unconfirmable payment.
+    const amountTotal = session.amount_total;
+    const { error: recordError } = quote && amountTotal == null
+      ? { error: new Error("Stripe returned no amount_total") }
+      : await admin
+        .from("reservations")
+        .update({
+          stripe_session_id: session.id,
+          ...(quote && amountTotal != null && {
+            total_yen: amountTotal,
+            coupon_code: quote.code,
+            discount_yen: total - amountTotal,
+          }),
+        })
+        .eq("id", reservation.id);
+    if (recordError) {
+      await stripe.checkout.sessions.expire(session.id).catch(() => {});
+      throw recordError;
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (e) {
     // Stripe refused — release the hold so the dates aren't stuck.
-    await getSupabaseAdmin()?.from("reservations").update({ status: "cancelled" }).eq("id", reservation.id);
+    await admin.from("reservations").update({ status: "cancelled" }).eq("id", reservation.id);
     console.error("stripe checkout error:", e);
+    // e.g. the single-use code was just redeemed by someone else.
+    if (quote && e instanceof Stripe.errors.StripeInvalidRequestError) {
+      return NextResponse.json({ error: "COUPON_INVALID" }, { status: 400 });
+    }
     return NextResponse.json({ error: "PAYMENT_ERROR" }, { status: 502 });
   }
 }

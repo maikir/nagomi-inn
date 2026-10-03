@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncExternalCalendars, parseImportUrls } from "@/lib/server/icalSync";
+import { getSupabaseAdmin } from "@/lib/server/supabaseAdmin";
+import { releaseOrphanedHolds } from "@/lib/server/holds";
 
 /**
  * GET /api/ical-sync
@@ -21,6 +23,10 @@ export async function GET(req: Request) {
   if (header !== `Bearer ${secret}` && token !== secret) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+
+  // Daily safety net for holds that never got a Checkout session.
+  const admin = getSupabaseAdmin();
+  if (admin) await releaseOrphanedHolds(admin).catch((e) => console.error("orphaned hold sweep failed:", e.message));
 
   if (parseImportUrls().length === 0) {
     return NextResponse.json({ synced: [], note: "ICAL_IMPORT_URLS is empty" });

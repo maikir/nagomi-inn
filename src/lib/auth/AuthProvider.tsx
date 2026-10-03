@@ -9,6 +9,7 @@ type AuthContextValue = {
   enabled: boolean;
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
   signOut: () => Promise<void>;
 };
 
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextValue>({
   enabled: false,
   user: null,
   loading: false,
+  isAdmin: false,
   signOut: async () => {},
 });
 
@@ -23,6 +25,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const enabled = isSupabaseEnabled();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(enabled);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const userId = user?.id;
+  const userEmail = user?.email;
+
+  useEffect(() => {
+    setAdminUserId(null);
+    if (!userId) return;
+    const controller = new AbortController();
+    async function checkAccess() {
+      try {
+        const session = (await getSupabase()?.auth.getSession())?.data.session;
+        if (!session || session.user.id !== userId || controller.signal.aborted) return;
+        const response = await fetch("/api/admin/access", {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          cache: "no-store", signal: controller.signal,
+        });
+        const result = response.ok ? await response.json() : null;
+        if (!controller.signal.aborted && result?.isAdmin === true) setAdminUserId(session.user.id);
+      } catch { /* Hide the link when access cannot be verified. */ }
+    }
+    void checkAccess();
+    return () => controller.abort();
+  }, [userId, userEmail]);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -45,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ enabled, user, loading, signOut }}>
+    <AuthContext.Provider value={{ enabled, user, loading, isAdmin: Boolean(user && adminUserId === user.id), signOut }}>
       {children}
     </AuthContext.Provider>
   );

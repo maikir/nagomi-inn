@@ -1,5 +1,5 @@
 -- ─── NAGOMI INN — Stripe payments + OTA iCal sync migration ──────────────────
--- Run AFTER schema.sql, at the moment you enable payments
+-- Run AFTER 20260705222859_initial_schema.sql, at the moment you enable payments
 -- (NEXT_PUBLIC_PAYMENTS=stripe). From then on, guests can no longer create
 -- reservations directly — every booking goes through Stripe Checkout:
 --   client → /api/checkout → 'pending' hold → Stripe → webhook → 'confirmed'.

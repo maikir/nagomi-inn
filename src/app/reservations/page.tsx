@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useLang, fill } from "@/lib/i18n/LanguageProvider";
+import { useLang, fill, resolveMessage, type Message } from "@/lib/i18n/LanguageProvider";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabase } from "@/lib/supabase/client";
 import { formatYen } from "@/config/site";
 import { getReservationStore, formatDate, nightsBetween, type Reservation } from "@/lib/reservations";
 import { refundTierFor } from "@/lib/reservations/cancellation";
+import { amenityPlanLabel, arrivalTimeLabel } from "@/lib/reservations/stayPlans";
 
 const PAYMENTS_ON = process.env.NEXT_PUBLIC_PAYMENTS === "stripe";
 
@@ -18,7 +19,7 @@ export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[] | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<({ tone: "ok" | "error" } & Message) | null>(null);
 
   const needsSignIn = authEnabled && !authLoading && !user;
 
@@ -29,6 +30,20 @@ export default function ReservationsPage() {
     }
     store.list().then(setReservations).catch(() => setReservations([]));
   }, [store, authEnabled, user]);
+
+  const cancellationProcessing = reservations?.some(r => r.cancellationState === "processing") ?? false;
+  useEffect(() => {
+    if (!cancellationProcessing) return;
+    const timer = setInterval(() => {
+      store.list().then(rows => {
+        setReservations(rows);
+        if (!rows.some(r => r.cancellationState === "processing")) {
+          setNotice(current => current?.key === "reservations.cancelProcessing" ? null : current);
+        }
+      }).catch(() => { /* Keep the last known state if refreshing fails. */ });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [store, cancellationProcessing]);
 
   if (needsSignIn) {
     return (
@@ -63,39 +78,48 @@ export default function ReservationsPage() {
     setCancelBusy(true);
     try {
       if (PAYMENTS_ON && authEnabled) {
-        // Paid bookings must cancel through the server so the Stripe refund
-        // happens atomically with the status change.
+        // The server verifies the refund status before completing cancellation.
         try {
           const session = (await getSupabase()?.auth.getSession())?.data.session;
           if (!session) throw new Error("no session");
           const res = await fetch("/api/cancel", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({ id: r.id }),
+            body: JSON.stringify({ id: r.id, lang }),
           });
           const json = (await res.json().catch(() => ({}))) as {
             cancelled?: boolean;
             refundPercent?: number;
             refundYen?: number;
+            pending?: boolean;
+            refundFailed?: boolean;
           };
-          if (!res.ok || !json.cancelled) throw new Error("cancel failed");
-          setNotice({
-            tone: "ok",
-            text:
-              json.refundPercent === 100
-                ? t.reservations.cancelledRefunded
+          if (json.refundFailed) {
+            setNotice({ tone: "error", key: "reservations.cancelRefundFailed" });
+            setReservations(await store.list());
+            setCancelling(null);
+            return;
+          }
+          if (!res.ok || (!json.cancelled && !json.pending)) throw new Error("cancel failed");
+          setNotice(
+            json.pending
+              ? { tone: "ok", key: "reservations.cancelProcessing" }
+              : json.refundPercent === 100
+                ? { tone: "ok", key: "reservations.cancelledRefunded" }
                 : json.refundPercent === 50
-                  ? fill(t.reservations.cancelledHalf, { refund: formatYen(json.refundYen ?? 0) })
-                  : t.reservations.cancelledNone,
-          });
+                  ? { tone: "ok", key: "reservations.cancelledHalf", params: { refund: formatYen(json.refundYen ?? 0) } }
+                  : { tone: "ok", key: "reservations.cancelledNone" },
+          );
         } catch {
-          setNotice({ tone: "error", text: t.reservations.cancelError });
+          setNotice({ tone: "error", key: "reservations.cancelError" });
+          // A request may have been saved even if the response was interrupted.
+          await store.list().then(setReservations).catch(() => {});
           setCancelling(null);
           return;
         }
       } else {
         await store.cancel(r.id);
-        setNotice({ tone: "ok", text: t.reservations.cancelledPlain });
+        setNotice({ tone: "ok", key: "reservations.cancelledPlain" });
       }
       setReservations(await store.list());
       setCancelling(null);
@@ -117,7 +141,7 @@ export default function ReservationsPage() {
             notice.tone === "ok" ? "border-moss/60 bg-moss/10 text-paper" : "border-copper/60 bg-copper/10 text-copper-bright"
           }`}
         >
-          {notice.text}
+          {resolveMessage(t, notice)}
         </p>
       )}
 
@@ -165,9 +189,37 @@ export default function ReservationsPage() {
                   </div>
                 </div>
 
+                {!cancelled && (r.arrivalTime || r.bbqPlan || r.saunaPlan) && (
+                  <div className="mt-5 border-t border-paper/10 pt-4">
+                    <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
+                      {r.arrivalTime && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.arrivalTime.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{arrivalTimeLabel(r.arrivalTime, t.reserve)}</dd>
+                        </div>
+                      )}
+                      {r.bbqPlan && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.bbq.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{amenityPlanLabel(r.bbqPlan, t.reserve)}</dd>
+                        </div>
+                      )}
+                      {r.saunaPlan && (
+                        <div>
+                          <dt className="text-[10px] tracking-[0.2em] text-paper-faint">{t.reserve.sauna.toUpperCase()}</dt>
+                          <dd className="mt-1 text-paper-dim">{amenityPlanLabel(r.saunaPlan, t.reserve)}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    <p className="mt-3 text-xs text-paper-faint">{t.reservations.plansFixedNote}</p>
+                  </div>
+                )}
+
                 {/* Pending rows are mid-payment: cancelling here couldn't stop the
                     charge, so only confirmed stays offer cancellation. */}
-                {r.status === "confirmed" && (
+                {r.cancellationState === "processing" && <p role="status" className="mt-4 text-sm text-copper-bright">{t.reservations.cancelProcessing}</p>}
+                {r.cancellationState === "failed" && <p role="status" className="mt-4 text-sm text-copper-bright">{t.reservations.cancelRefundFailed}</p>}
+                {r.status === "confirmed" && r.cancellationState !== "failed" && (
                   <div className="mt-6 border-t border-paper/10 pt-5">
                     {cancelling === r.id ? (
                       <div className="space-y-3">
@@ -200,10 +252,11 @@ export default function ReservationsPage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => setCancelling(r.id)}
+                        onClick={() => r.cancellationState === "processing" ? void confirmCancel(r) : setCancelling(r.id)}
+                        disabled={cancelBusy}
                         className="text-xs tracking-[0.2em] text-paper-faint underline-offset-4 transition-colors hover:text-copper-bright hover:underline"
                       >
-                        {t.reservations.cancel}
+                        {r.cancellationState === "processing" ? t.reservations.checkCancellation : t.reservations.cancel}
                       </button>
                     )}
                   </div>

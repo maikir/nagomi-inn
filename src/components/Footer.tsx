@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useLang } from "@/lib/i18n/LanguageProvider";
 import { site } from "@/config/site";
 import { LogoMark } from "@/components/LogoMark";
+import { InstagramBubble } from "@/components/InstagramBubble";
 
 export function Footer() {
   const { t } = useLang();
@@ -11,7 +12,7 @@ export function Footer() {
   return (
     <footer className="border-t border-paper/10 bg-sumi-950">
       <div className="mx-auto max-w-7xl px-5 py-16 md:px-8">
-        <div className="grid gap-12 md:grid-cols-[2fr_1fr_1fr]">
+        <div className="grid gap-12 md:grid-cols-[2fr_1fr_minmax(280px,1fr)]">
           <div>
             <div className="flex items-center gap-2.5">
               <LogoMark size="md" />
@@ -49,7 +50,8 @@ export function Footer() {
                   {site.contact.phone}
                 </a>
               </li>
-              <li>
+              {/* Plain handle: desktop only — mobile gets the gradient button below. */}
+              <li className="hidden md:block">
                 <a
                   href={`https://instagram.com/${site.contact.instagram}`}
                   target="_blank"
@@ -61,6 +63,26 @@ export function Footer() {
               </li>
             </ul>
 
+            {/* Mobile-only Instagram button — a phone can't scan the QR, so give
+                it a tappable brand-gradient call-to-action instead. */}
+            <a
+              href={`https://instagram.com/${site.contact.instagram}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-6 flex items-center gap-3 rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#fa7e1e] via-30% to-[#d62976] px-5 py-3.5 text-white shadow-lg shadow-black/25 transition-transform active:scale-[0.98] md:hidden"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20">
+                <InstagramGlyph size={22} />
+              </span>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="text-sm font-semibold">{t.footer.instagramQr}</span>
+                <span className="truncate text-xs text-white/85">@{site.contact.instagram}</span>
+              </span>
+              <span className="ml-auto shrink-0 text-lg" aria-hidden="true">
+                ↗
+              </span>
+            </a>
+
             {/* Instagram QR — desktop only (on a phone the handle link above
                 is the natural path; you can't scan your own screen). The white
                 tile keeps it scannable on the dark theme; the brand-gradient
@@ -70,34 +92,37 @@ export function Footer() {
               href={`https://instagram.com/${site.contact.instagram}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="group mt-7 hidden w-fit md:block"
+              className="group mt-7 hidden w-fit max-w-full items-start gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-copper md:flex"
             >
-              <span className="block w-fit rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
+              <span className="block w-fit shrink-0 rounded-2xl bg-gradient-to-tr from-[#feda75] via-[#d62976] to-[#4f5bd5] p-[3px] shadow-lg shadow-black/20 transition-transform group-hover:-translate-y-0.5">
                 <span className="block rounded-[13px] bg-white p-2.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/images/instagram-qr.svg" alt={t.footer.instagramQr} className="h-24 w-24" />
                 </span>
               </span>
-              <span className="mt-3 flex items-center gap-1.5 text-[10px] tracking-[0.15em] text-paper-faint transition-colors group-hover:text-paper-dim">
-                <InstagramGlyph />
+              <InstagramBubble>
                 {t.footer.instagramQr}
-              </span>
+              </InstagramBubble>
             </a>
           </div>
         </div>
 
-        <div className="mt-14 border-t border-paper/10 pt-6 text-xs tracking-wider text-paper-faint">
-          {t.footer.legal.replace("{year}", String(new Date().getFullYear()))}
+        <div className="mt-14 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-paper/10 pt-6 text-xs tracking-wider text-paper-faint">
+          <span>{t.footer.legal.replace("{year}", String(new Date().getFullYear()))}</span>
+          <span className="flex flex-wrap gap-x-6 gap-y-2">
+            <Link href="/tokushoho" className="transition-colors hover:text-paper">{t.footer.tokushoho}</Link>
+            <Link href="/privacy" className="transition-colors hover:text-paper">{t.footer.privacy}</Link>
+          </span>
         </div>
       </div>
     </footer>
   );
 }
 
-/** Small monochrome Instagram camera glyph (inherits text color). */
-function InstagramGlyph() {
+/** Monochrome Instagram camera glyph (inherits text color). */
+function InstagramGlyph({ size = 12 }: { size?: number }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <rect x="2" y="2" width="20" height="20" rx="5.5" />
       <circle cx="12" cy="12" r="4.2" />
       <circle cx="17.6" cy="6.4" r="1.2" fill="currentColor" stroke="none" />

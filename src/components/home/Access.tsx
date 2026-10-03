@@ -12,8 +12,8 @@ export function Access() {
       <div className="mx-auto grid max-w-7xl gap-14 px-5 md:px-8 lg:grid-cols-2 lg:gap-20">
         <Reveal className="relative order-2 min-h-[360px] overflow-hidden lg:order-1">
           <Image
-            src="/images/annex-hall-view.jpg"
-            alt="Rice paddies seen from the upstairs hall windows"
+            src="/images/access-sunset-fields.jpg"
+            alt="Sunset over the rice fields around Nagomi, seen from the property"
             fill
             sizes="(min-width: 1024px) 50vw, 100vw"
             className="object-cover"

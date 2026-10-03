@@ -6,12 +6,12 @@ import { site } from "@/config/site";
  *
  *   チェックイン5日前まで無料                    → 100% refund
  *   4日前〜1日前　キャンセル料50%                →  50% refund
- *   当日（チェックイン24時間以内＝前日15時以降）100% →   0% refund
+ *   当日（チェックイン24時間以内＝前日16時以降）100% →   0% refund
  *
  * All boundaries are computed in inn local time (JST, UTC+9), regardless of
  * the guest's or server's timezone:
- *   • check-in moment      = check-in date 15:00 JST
- *   • same-day window from = 15:00 JST the day before (24h before check-in)
+ *   • check-in moment      = check-in date 16:00 JST (site.checkIn)
+ *   • same-day window from = 16:00 JST the day before (24h before check-in)
  *   • 50% window from      = 00:00 JST four days before check-in
  */
 
